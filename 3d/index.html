@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SDベッドフレーム 3DCG</title>
+  <style>
+    :root {
+      --bg: #e8e2d6;
+      --panel: #f6f1e7;
+      --ink: #241e16;
+      --muted: #5c5348;
+      --line: #cfc4b0;
+      --accent: #7a3f16;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; }
+    #app { display: grid; grid-template-rows: auto 1fr; height: 100%; }
+    header {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--panel);
+    }
+    header h1 { font-size: 15px; font-weight: 600; margin: 0; }
+    header p { margin: 0; font-size: 12px; color: var(--muted); }
+    #toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+    button, select {
+      font-family: inherit; font-size: 12px; color: var(--ink);
+      background: #fff; border: 1px solid var(--line); border-radius: 4px;
+      padding: 5px 9px; cursor: pointer;
+    }
+    button.active, button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+    #main { display: grid; grid-template-columns: 1fr 300px; min-height: 0; }
+    #stage { position: relative; min-width: 0; background: #d9d1c3; }
+    #view, #draw { position: absolute; inset: 0; }
+    #draw { display: none; overflow: auto; background: #f3efe6; padding: 16px; }
+    #draw.visible { display: block; }
+    #view.hidden { visibility: hidden; }
+    #hud {
+      position: absolute; left: 12px; top: 12px; font-size: 11px; color: var(--muted);
+      background: rgba(246,241,231,0.92); padding: 8px 10px; border: 1px solid var(--line);
+      line-height: 1.65; pointer-events: none; z-index: 2;
+    }
+    #side {
+      border-left: 1px solid var(--line); background: var(--panel);
+      overflow: auto; padding: 12px 14px; font-size: 12px;
+    }
+    #side h2 { font-size: 11px; margin: 16px 0 8px; letter-spacing: 0.08em; color: var(--muted); }
+    #side h2:first-child { margin-top: 0; }
+    #part-info { min-height: 86px; padding: 10px; background: #fff; border: 1px solid var(--line); }
+    #part-info .id { font-family: ui-monospace, Menlo, monospace; font-weight: 600; color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; }
+    .idcell { font-family: ui-monospace, Menlo, monospace; font-size: 11px; white-space: nowrap; }
+    .swatch { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
+    #legend span { display: inline-flex; align-items: center; margin: 0 8px 4px 0; color: var(--muted); }
+    .label3d {
+      font-family: ui-monospace, Menlo, monospace; font-size: 10px; font-weight: 600;
+      color: #241e16; background: rgba(255,252,246,0.95); border: 1px solid #241e16;
+      padding: 1px 4px; white-space: nowrap; pointer-events: none;
+    }
+    .label3d.dim { color: #7a3f16; border-color: #7a3f16; }
+    .sheet { background: #fff; border: 1px solid var(--line); margin: 0 0 16px; padding: 10px 12px 16px; }
+    .sheet h3 { margin: 0 0 8px; font-size: 13px; }
+    .sheet svg { width: 100%; height: auto; display: block; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div>
+        <h1>セミダブルベッドフレーム 3DCG / 図面</h1>
+        <p>単位 mm　2x4=38×89　1x4=19×89　60kg×2名　カインズ多摩境店</p>
+      </div>
+      <div id="toolbar">
+        <button data-page="cg" class="active">3DCG</button>
+        <button data-page="draw">2D図面</button>
+        <button data-mode="assembled">完成</button>
+        <button data-mode="structure" class="active">構造</button>
+        <button data-mode="split">上下分離</button>
+        <button data-mode="exploded">爆発図</button>
+        <button data-mode="joints">接合</button>
+        <select id="camera">
+          <option value="iso">斜視</option>
+          <option value="low">床下斜視</option>
+          <option value="top">平面</option>
+          <option value="front">正面</option>
+          <option value="side">側面</option>
+        </select>
+        <button id="toggleIds" aria-pressed="true">部材ID</button>
+        <button id="toggleDims" aria-pressed="true">寸法</button>
+        <button id="toggleBoxes" aria-pressed="false">段ボール</button>
+      </div>
+    </header>
+    <div id="main">
+      <div id="stage">
+        <div id="hud">外寸 1296 × 2036 × 389<br />床下 300　半体 1018　内寸 1220 × 1960</div>
+        <div id="view"></div>
+        <div id="draw"></div>
+      </div>
+      <aside id="side">
+        <h2>選択部材</h2>
+        <div id="part-info">3DCG上の部材、または右のリストをクリックする。</div>
+        <h2>凡例</h2>
+        <div id="legend">
+          <span><i class="swatch" style="background:#c9a06a"></i>上半身</span>
+          <span><i class="swatch" style="background:#b07f4a"></i>下半身</span>
+          <span><i class="swatch" style="background:#a67c52"></i>脚</span>
+          <span><i class="swatch" style="background:#e6d3a3"></i>受け桟</span>
+          <span><i class="swatch" style="background:#d7b57a"></i>すのこ</span>
+          <span><i class="swatch" style="background:#d4b06e"></i>結合1x4</span>
+          <span><i class="swatch" style="background:#c45c26"></i>ボルト</span>
+        </div>
+        <h2>木材</h2>
+        <div id="part-table"></div>
+        <h2>金具</h2>
+        <div id="hw-table"></div>
+        <h2>接合ID</h2>
+        <div id="joint-table"></div>
+        <h2>資料</h2>
+        <p><a href="../要件定義.md">要件定義</a>　<a href="../設計書.md">設計書</a></p>
+      </aside>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+
+    const T2 = 38, W2 = 89, T1 = 19, W1 = 89;
+    const OUTER_W = 1296, OUTER_L = 2036, HALF = 1018, CLEAR = 300, H = 389;
+    const SLAT_P = 124.4, SLAT_W = 89, SLAT_L = 1216, BATTEN_L = 960;
+    const COLORS = {
+      head: 0xc9a06a, foot: 0xb07f4a, joint: 0xd4b06e, leg: 0x8d6233,
+      ledger: 0xe6d3a3, slat: 0xd7b57a, plate: 0x6e8aa3, box: 0xc4a574, bolt: 0xc45c26,
+    };
+
+    function slats(prefix, x0, module) {
+      return Array.from({ length: 8 }, (_, i) => ({
+        id: `${prefix}-${String(i + 1).padStart(2, "0")}`,
+        name: `${module === "head" ? "上" : "下"}半身スラット ${i + 1}`,
+        module, kind: "slat",
+        x: x0 + i * SLAT_P, y: 370, z: 40, dx: SLAT_W, dy: T1, dz: SLAT_L, color: COLORS.slat,
+      }));
+    }
+
+    const PARTS = [
+      { id: "F-H", name: "ヘッドレール", module: "head", kind: "frame", x: 0, y: 300, z: 38, dx: T2, dy: W2, dz: 1220, color: COLORS.head },
+      { id: "F-J-H", name: "結合横断材 上半身 1x4", module: "head", kind: "frame", x: 999, y: 300, z: 38, dx: T1, dy: W2, dz: 1220, color: COLORS.joint },
+      { id: "F-SL-H", name: "左側枠 上半身", module: "head", kind: "frame", x: 0, y: 300, z: 0, dx: 1018, dy: W2, dz: T2, color: COLORS.head },
+      { id: "F-SR-H", name: "右側枠 上半身", module: "head", kind: "frame", x: 0, y: 300, z: 1258, dx: 1018, dy: W2, dz: T2, color: COLORS.head },
+      { id: "F-CL-H", name: "センターレール 上半身", module: "head", kind: "frame", x: 38, y: 262, z: 629, dx: 961, dy: W2, dz: T2, color: COLORS.head },
+      { id: "F-F", name: "フットレール", module: "foot", kind: "frame", x: 1998, y: 300, z: 38, dx: T2, dy: W2, dz: 1220, color: COLORS.foot },
+      { id: "F-J-F", name: "結合横断材 下半身 1x4", module: "foot", kind: "frame", x: 1018, y: 300, z: 38, dx: T1, dy: W2, dz: 1220, color: COLORS.joint },
+      { id: "F-SL-F", name: "左側枠 下半身", module: "foot", kind: "frame", x: 1018, y: 300, z: 0, dx: 1018, dy: W2, dz: T2, color: COLORS.foot },
+      { id: "F-SR-F", name: "右側枠 下半身", module: "foot", kind: "frame", x: 1018, y: 300, z: 1258, dx: 1018, dy: W2, dz: T2, color: COLORS.foot },
+      { id: "F-CL-F", name: "センターレール 下半身", module: "foot", kind: "frame", x: 1037, y: 262, z: 629, dx: 961, dy: W2, dz: T2, color: COLORS.foot },
+      { id: "L-HL", name: "脚 ヘッド左", module: "head", kind: "leg", x: 38, y: 0, z: 38, dx: T2, dy: H, dz: W2, color: COLORS.leg },
+      { id: "L-HC", name: "脚 ヘッド中央", module: "head", kind: "leg", x: 38, y: 0, z: 591, dx: W2, dy: H, dz: T2, color: COLORS.leg },
+      { id: "L-HR", name: "脚 ヘッド右", module: "head", kind: "leg", x: 38, y: 0, z: 1169, dx: T2, dy: H, dz: W2, color: COLORS.leg },
+      { id: "L-JL-H", name: "脚 結合左 上半身", module: "head", kind: "leg", x: 910, y: 0, z: 38, dx: W2, dy: H, dz: T2, color: COLORS.leg },
+      { id: "L-JC-H", name: "脚 結合中 上半身", module: "head", kind: "leg", x: 910, y: 0, z: 591, dx: W2, dy: H, dz: T2, color: COLORS.leg },
+      { id: "L-JR-H", name: "脚 結合右 上半身", module: "head", kind: "leg", x: 910, y: 0, z: 1220, dx: W2, dy: H, dz: T2, color: COLORS.leg },
+      { id: "L-FL", name: "脚 フット左", module: "foot", kind: "leg", x: 1960, y: 0, z: 38, dx: T2, dy: H, dz: W2, color: COLORS.leg },
+      { id: "L-FC", name: "脚 フット中央", module: "foot", kind: "leg", x: 1909, y: 0, z: 591, dx: W2, dy: H, dz: T2, color: COLORS.leg },
+      { id: "L-FR", name: "脚 フット右", module: "foot", kind: "leg", x: 1960, y: 0, z: 1169, dx: T2, dy: H, dz: W2, color: COLORS.leg },
+      { id: "L-JL-F", name: "脚 結合左 下半身", module: "foot", kind: "leg", x: 1037, y: 0, z: 38, dx: W2, dy: H, dz: T2, color: COLORS.leg },
+      { id: "L-JC-F", name: "脚 結合中 下半身", module: "foot", kind: "leg", x: 1037, y: 0, z: 591, dx: W2, dy: H, dz: T2, color: COLORS.leg },
+      { id: "L-JR-F", name: "脚 結合右 下半身", module: "foot", kind: "leg", x: 1037, y: 0, z: 1220, dx: W2, dy: H, dz: T2, color: COLORS.leg },
+      { id: "G-SL-H", name: "左受け桟 上半身", module: "head", kind: "ledger", x: 76, y: 332, z: 38, dx: 834, dy: T1, dz: T1, color: COLORS.ledger },
+      { id: "G-SR-H", name: "右受け桟 上半身", module: "head", kind: "ledger", x: 76, y: 332, z: 1239, dx: 834, dy: T1, dz: T1, color: COLORS.ledger },
+      { id: "G-SL-F", name: "左受け桟 下半身", module: "foot", kind: "ledger", x: 1126, y: 332, z: 38, dx: 834, dy: T1, dz: T1, color: COLORS.ledger },
+      { id: "G-SR-F", name: "右受け桟 下半身", module: "foot", kind: "ledger", x: 1126, y: 332, z: 1239, dx: 834, dy: T1, dz: T1, color: COLORS.ledger },
+      { id: "S-H-B1", name: "上半身根太 左", module: "head", kind: "slat", x: 50, y: 351, z: 38, dx: BATTEN_L, dy: T1, dz: W1, color: COLORS.slat },
+      { id: "S-H-B2", name: "上半身根太 中", module: "head", kind: "slat", x: 50, y: 351, z: 629, dx: BATTEN_L, dy: T1, dz: W1, color: COLORS.slat },
+      { id: "S-H-B3", name: "上半身根太 右", module: "head", kind: "slat", x: 50, y: 351, z: 1169, dx: BATTEN_L, dy: T1, dz: W1, color: COLORS.slat },
+      { id: "S-F-B1", name: "下半身根太 左", module: "foot", kind: "slat", x: 1026, y: 351, z: 38, dx: BATTEN_L, dy: T1, dz: W1, color: COLORS.slat },
+      { id: "S-F-B2", name: "下半身根太 中", module: "foot", kind: "slat", x: 1026, y: 351, z: 629, dx: BATTEN_L, dy: T1, dz: W1, color: COLORS.slat },
+      { id: "S-F-B3", name: "下半身根太 右", module: "foot", kind: "slat", x: 1026, y: 351, z: 1169, dx: BATTEN_L, dy: T1, dz: W1, color: COLORS.slat },
+      ...slats("S-H", 50, "head"),
+      ...slats("S-F", 1026, "foot"),
+    ];
+
+    const HARDWARE = [
+      { id: "H-ON25", name: "鬼目ナット Dタイプ", spec: "M8×25", qty: 36 },
+      { id: "H-ONJ", name: "鬼目ナット Jタイプ", spec: "M8 脚底", qty: 12 },
+      { id: "H-B60", name: "六角ボルト", spec: "M8×60", qty: 44 },
+      { id: "H-B50", name: "六角ボルト 合体", spec: "M8×50", qty: 6 },
+      { id: "H-N8", name: "六角ナット", spec: "M8", qty: 14 },
+      { id: "H-W", name: "平座金", spec: "M8", qty: 64 },
+      { id: "H-SW", name: "ばね座金", spec: "M8", qty: 50 },
+      { id: "H-AJ", name: "アジャスター", spec: "M8", qty: 12 },
+      { id: "H-DW", name: "木ダボ", spec: "φ8×40", qty: 4 },
+      { id: "H-CS32", name: "コーススレッド", spec: "3.8×32", qty: 48 },
+      { id: "H-CS45", name: "コーススレッド", spec: "3.8×45", qty: 16 },
+      { id: "H-FE", name: "フェルトパッド", spec: "脚先", qty: 12 },
+    ];
+
+    const JOINTS = [
+      { id: "J-01", name: "左ヘッド隅", bolt: "H-B60×2", thru: "F-SL-H", nut: "F-H 鬼目" },
+      { id: "J-02", name: "右ヘッド隅", bolt: "H-B60×2", thru: "F-SR-H", nut: "F-H 鬼目" },
+      { id: "J-03", name: "上半身 左・F-J-H", bolt: "H-B60×2", thru: "F-SL-H", nut: "F-J-H ナット" },
+      { id: "J-04", name: "上半身 右・F-J-H", bolt: "H-B60×2", thru: "F-SR-H", nut: "F-J-H ナット" },
+      { id: "J-05", name: "左フット隅", bolt: "H-B60×2", thru: "F-SL-F", nut: "F-F 鬼目" },
+      { id: "J-06", name: "右フット隅", bolt: "H-B60×2", thru: "F-SR-F", nut: "F-F 鬼目" },
+      { id: "J-07", name: "下半身 左・F-J-F", bolt: "H-B60×2", thru: "F-SL-F", nut: "F-J-F ナット" },
+      { id: "J-08", name: "下半身 右・F-J-F", bolt: "H-B60×2", thru: "F-SR-F", nut: "F-J-F ナット" },
+      { id: "J-M", name: "合体 F-J-H ↔ F-J-F", bolt: "H-B50×6 + ナット", thru: "F-J-H", nut: "F-J-F" },
+    ];
+
+    function bz(id, joint, x, y, z, len) {
+      return { id, name: joint, module: "joint", kind: "bolt", joint, x, y: y - 7, z, dx: 14, dy: 14, dz: len, color: COLORS.bolt };
+    }
+    function bx(id, joint, x, y, z, len) {
+      return { id, name: joint, module: "joint", kind: "bolt", joint, x, y: y - 7, z: z - 7, dx: len, dy: 14, dz: 14, color: COLORS.bolt };
+    }
+    function by(id, joint, x, y, z, len) {
+      return { id, name: joint, module: "joint", kind: "bolt", joint, x: x - 7, y, z: z - 7, dx: 14, dy: len, dz: 14, color: COLORS.bolt };
+    }
+    const BOLTS = [
+      bz("J-01a", "J-01", 15, 322, -4, 50), bz("J-01b", "J-01", 15, 367, -4, 50),
+      bz("J-02a", "J-02", 15, 322, 1246, 50), bz("J-02b", "J-02", 15, 367, 1246, 50),
+      bz("J-03a", "J-03", 1004, 322, -4, 50), bz("J-03b", "J-03", 1004, 367, -4, 50),
+      bz("J-04a", "J-04", 1004, 322, 1246, 50), bz("J-04b", "J-04", 1004, 367, 1246, 50),
+      bz("J-05a", "J-05", 2013, 322, -4, 50), bz("J-05b", "J-05", 2013, 367, -4, 50),
+      bz("J-06a", "J-06", 2013, 322, 1246, 50), bz("J-06b", "J-06", 2013, 367, 1246, 50),
+      bz("J-07a", "J-07", 1023, 322, -4, 50), bz("J-07b", "J-07", 1023, 367, -4, 50),
+      bz("J-08a", "J-08", 1023, 322, 1246, 50), bz("J-08b", "J-08", 1023, 367, 1246, 50),
+      bx("J-Ma", "J-M", 994, 344, 80, 56), bx("J-Mb", "J-M", 994, 344, 300, 56),
+      bx("J-Mc", "J-M", 994, 344, 500, 56), bx("J-Md", "J-M", 994, 344, 796, 56),
+      bx("J-Me", "J-M", 994, 344, 996, 56), bx("J-Mf", "J-M", 994, 344, 1216, 56),
+    ];
+
+    const viewEl = document.getElementById("view");
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xd9d1c3);
+    const camera = new THREE.PerspectiveCamera(38, 1, 10, 20000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    viewEl.appendChild(renderer.domElement);
+    const labelRenderer = new CSS2DRenderer();
+    Object.assign(labelRenderer.domElement.style, { position: "absolute", inset: "0", pointerEvents: "none" });
+    viewEl.appendChild(labelRenderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.62));
+    const key = new THREE.DirectionalLight(0xfff4e5, 1.15);
+    key.position.set(600, 1400, 1200);
+    scene.add(key);
+    scene.add(new THREE.DirectionalLight(0xc5d4e8, 0.4)).position.set(-1400, 400, -700);
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(5000, 3600),
+      new THREE.MeshStandardMaterial({ color: 0xcfc6b6, roughness: 1 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(1018, -1, 648);
+    scene.add(floor);
+    const grid = new THREE.GridHelper(4000, 20, 0xb7aa96, 0xc8bdaa);
+    grid.position.set(1018, 0, 648);
+    scene.add(grid);
+
+    const root = new THREE.Group();
+    scene.add(root);
+    const meshes = [];
+    const idLabels = [];
+
+    function makeLabel(text, cls) {
+      const el = document.createElement("div");
+      el.className = "label3d" + (cls ? " " + cls : "");
+      el.textContent = text;
+      return new CSS2DObject(el);
+    }
+
+    function addPart(p) {
+      const geom = new THREE.BoxGeometry(p.dx, p.dy, p.dz);
+      const material = new THREE.MeshStandardMaterial({
+        color: p.color, roughness: 0.7, metalness: 0.02,
+        transparent: p.kind === "slat", opacity: p.kind === "slat" ? 0.92 : 1,
+      });
+      const mesh = new THREE.Mesh(geom, material);
+      mesh.position.set(p.x + p.dx / 2, p.y + p.dy / 2, p.z + p.dz / 2);
+      mesh.userData = p;
+      mesh.add(new THREE.LineSegments(
+        new THREE.EdgesGeometry(geom),
+        new THREE.LineBasicMaterial({ color: 0x2b241c })
+      ));
+      const label = makeLabel(p.id);
+      label.position.set(0, p.dy / 2 + 12, 0);
+      mesh.add(label);
+      idLabels.push({ obj: label, part: p });
+      root.add(mesh);
+      meshes.push(mesh);
+    }
+    PARTS.forEach(addPart);
+    BOLTS.forEach(addPart);
+
+    const boxGroup = new THREE.Group();
+    boxGroup.visible = false;
+    [
+      [90, 50], [490, 50], [1040, 50], [1440, 50],
+      [90, 988], [490, 988], [1040, 988], [1440, 988],
+    ].forEach(([x, z], i) => {
+      const geom = new THREE.BoxGeometry(380, 280, 270);
+      const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({
+        color: COLORS.box, transparent: true, opacity: 0.4, roughness: 1,
+      }));
+      mesh.position.set(x + 190, 140, z + 135);
+      mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geom), new THREE.LineBasicMaterial({ color: 0x5a4320 })));
+      const lab = makeLabel("BOX " + (i + 1), "dim");
+      lab.position.set(0, 150, 0);
+      mesh.add(lab);
+      boxGroup.add(mesh);
+    });
+    root.add(boxGroup);
+
+    const dimGroup = new THREE.Group();
+    root.add(dimGroup);
+    const dimMat = new THREE.MeshBasicMaterial({ color: 0x7a3f16 });
+
+    function thickLine(a, b) {
+      const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
+      const dir = vb.clone().sub(va);
+      const len = dir.length();
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(len, 4, 4), dimMat);
+      mesh.position.copy(va.clone().add(vb).multiplyScalar(0.5));
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.clone().normalize());
+      dimGroup.add(mesh);
+    }
+    function dimLine(a, b, text, lift = 20) {
+      thickLine(a, b);
+      const mid = new THREE.Vector3(
+        (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + lift, (a[2] + b[2]) / 2
+      );
+      const lab = makeLabel(text, "dim");
+      lab.position.copy(mid);
+      dimGroup.add(lab);
+    }
+    dimLine([0, 6, -90], [2036, 6, -90], "2036 全長");
+    dimLine([0, 6, -180], [1018, 6, -180], "1018 上半身");
+    dimLine([1018, 6, -180], [2036, 6, -180], "1018 下半身");
+    dimLine([-90, 6, 0], [-90, 6, 1296], "1296 全幅");
+    dimLine([-180, 6, 38], [-180, 6, 1258], "1220 内幅");
+    dimLine([2140, 0, 0], [2140, 389, 0], "389 全高");
+    dimLine([2230, 0, 0], [2230, 300, 0], "300 床下");
+    dimLine([2140, 300, 1360], [2140, 389, 1360], "89 枠成");
+    dimLine([90, 310, -270], [470, 310, -270], "380 箱幅");
+    dimLine([-270, 6, 50], [-270, 6, 320], "270 箱奥");
+
+    const state = { mode: "assembled", showIds: true, showDims: true };
+
+    function offsetOf(part, mode) {
+      const o = new THREE.Vector3();
+      if (mode === "split" || mode === "exploded") {
+        if (part.module === "foot") o.x += 260;
+      }
+      if (mode === "structure" || mode === "exploded") {
+        if (part.kind === "slat") o.y += mode === "exploded" ? 280 : 10000;
+      }
+      if (mode === "exploded") {
+        if (part.kind === "leg") o.y -= 90;
+        if (part.module === "head" && part.kind === "frame") o.x -= 50;
+        if (part.module === "foot" && part.kind === "frame") o.x += 50;
+      }
+      return o;
+    }
+
+    function applyMode(mode) {
+      state.mode = mode;
+      meshes.forEach((m) => {
+        const p = m.userData;
+        const o = offsetOf(p, mode);
+        const hideSlat = (mode === "structure" || mode === "joints") && p.kind === "slat";
+        const hideBolt = p.kind === "bolt" && mode !== "joints" && mode !== "exploded";
+        m.visible = !hideSlat && !hideBolt;
+        if (p.kind !== "bolt" && p.kind !== "slat") {
+          m.material.transparent = mode === "joints";
+          m.material.opacity = mode === "joints" ? 0.55 : 1;
+        }
+        m.position.set(p.x + p.dx / 2 + o.x, p.y + p.dy / 2 + o.y, p.z + p.dz / 2 + o.z);
+      });
+      document.querySelectorAll("#toolbar [data-mode]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.mode === mode);
+      });
+    }
+
+    function majorLabel(p) {
+      if (p.kind === "slat") return /-(01|08|B2)$/.test(p.id);
+      if (p.kind === "bolt") return /a$/.test(p.id);
+      return true;
+    }
+    function refreshLabels() {
+      idLabels.forEach(({ obj, part }) => {
+        const mesh = meshes.find((m) => m.userData.id === part.id);
+        obj.visible = state.showIds && mesh && mesh.visible && (state.mode === "exploded" || majorLabel(part));
+      });
+      dimGroup.visible = state.showDims && state.mode === "assembled";
+    }
+
+    const infoEl = document.getElementById("part-info");
+    let selected = null;
+    function showInfo(p) {
+      if (p.kind === "bolt") {
+        const j = JOINTS.find((x) => x.id === p.joint);
+        infoEl.innerHTML = `<div class="id">${p.joint}</div><div>${j ? j.name : p.name}</div><div>通し ${j ? j.thru : ""} → 鬼目 ${j ? j.nut : ""}</div><div>${j ? j.bolt : ""}　切り欠きなし</div>`;
+        return;
+      }
+      const sec = { head: "上半身", foot: "下半身", joint: "合体部" }[p.module];
+      infoEl.innerHTML = `<div class="id">${p.id}</div><div>${p.name}</div><div>${sec}　${p.dx} × ${p.dy} × ${p.dz}</div><div>原点 (${p.x}, ${p.y}, ${p.z})</div>`;
+    }
+    function select(mesh) {
+      if (selected) { selected.material.emissive.setHex(0x000000); selected.material.emissiveIntensity = 0; }
+      selected = mesh;
+      if (mesh) {
+        mesh.material.emissive.setHex(0x4a220c);
+        mesh.material.emissiveIntensity = 0.28;
+        showInfo(mesh.userData);
+      }
+    }
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    renderer.domElement.addEventListener("pointerdown", (e) => {
+      const r = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+      pointer.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(meshes.filter((m) => m.visible), false);
+      select(hits[0] ? hits[0].object : null);
+    });
+
+    function setCamera(name) {
+      const box = new THREE.Box3();
+      meshes.forEach((m) => { if (m.visible) box.expandByObject(m); });
+      const t = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const dist = Math.max(size.x, size.y, size.z) * 1.15;
+      controls.target.copy(t);
+      if (name === "top") camera.position.set(t.x, t.y + dist * 1.8, t.z + 8);
+      else if (name === "front") camera.position.set(t.x + dist * 1.5, t.y + dist * 0.25, t.z);
+      else if (name === "side") camera.position.set(t.x, t.y + dist * 0.2, t.z - dist * 1.5);
+      else if (name === "low") camera.position.set(t.x + dist * 0.85, t.y + dist * 0.28, t.z + dist * 0.85);
+      else camera.position.set(t.x + dist * 0.95, t.y + dist * 0.55, t.z + dist * 0.95);
+      camera.lookAt(t);
+      controls.update();
+    }
+
+    function resize() {
+      const w = viewEl.clientWidth, h = viewEl.clientHeight;
+      if (!w || !h) return;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      labelRenderer.setSize(w, h);
+    }
+    window.addEventListener("resize", resize);
+
+    document.querySelectorAll("#toolbar [data-mode]").forEach((b) => {
+      b.addEventListener("click", () => {
+        applyMode(b.dataset.mode);
+        refreshLabels();
+        if (b.dataset.mode === "joints") {
+          camSel.value = "low";
+          setCamera("low");
+        }
+      });
+    });
+    const camSel = document.getElementById("camera");
+    camSel.addEventListener("change", (e) => setCamera(e.target.value));
+    camSel.addEventListener("input", (e) => setCamera(e.target.value));
+    document.getElementById("toggleIds").addEventListener("click", (e) => {
+      state.showIds = !state.showIds;
+      e.currentTarget.setAttribute("aria-pressed", String(state.showIds));
+      refreshLabels();
+    });
+    document.getElementById("toggleDims").addEventListener("click", (e) => {
+      state.showDims = !state.showDims;
+      e.currentTarget.setAttribute("aria-pressed", String(state.showDims));
+      refreshLabels();
+    });
+    document.getElementById("toggleBoxes").addEventListener("click", (e) => {
+      boxGroup.visible = !boxGroup.visible;
+      e.currentTarget.setAttribute("aria-pressed", String(boxGroup.visible));
+    });
+
+    const drawEl = document.getElementById("draw");
+    document.querySelectorAll("#toolbar [data-page]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const page = b.dataset.page;
+        document.querySelectorAll("#toolbar [data-page]").forEach((x) => x.classList.toggle("active", x === b));
+        drawEl.classList.toggle("visible", page === "draw");
+        viewEl.classList.toggle("hidden", page === "draw");
+        if (page === "cg") resize();
+      });
+    });
+
+    const table = document.getElementById("part-table");
+    table.innerHTML = `<table><thead><tr><th>ID</th><th>名称 / 寸法</th></tr></thead><tbody>${
+      PARTS.map((p) => `<tr data-id="${p.id}"><td class="idcell">${p.id}</td><td>${p.name}<br>${p.dx}×${p.dy}×${p.dz}</td></tr>`).join("")
+    }</tbody></table>`;
+    table.addEventListener("click", (e) => {
+      const tr = e.target.closest("tr[data-id]");
+      if (!tr) return;
+      const mesh = meshes.find((m) => m.userData.id === tr.dataset.id);
+      if (mesh) select(mesh);
+    });
+    document.getElementById("hw-table").innerHTML = `<table><thead><tr><th>ID</th><th>名称</th></tr></thead><tbody>${
+      HARDWARE.map((h) => `<tr><td class="idcell">${h.id}</td><td>${h.name}<br>${h.spec}　${h.qty}${h.id.startsWith("H-CS") || h.id === "H-FE" ? "" : "個"}</td></tr>`).join("")
+    }</tbody></table>`;
+    document.getElementById("joint-table").innerHTML = `<table><thead><tr><th>ID</th><th>通し → 鬼目</th></tr></thead><tbody>${
+      JOINTS.map((j) => `<tr data-joint="${j.id}"><td class="idcell">${j.id}</td><td>${j.name}<br>${j.thru} → ${j.nut}<br>${j.bolt}</td></tr>`).join("")
+    }</tbody></table>`;
+    document.getElementById("joint-table").addEventListener("click", (e) => {
+      const tr = e.target.closest("tr[data-joint]");
+      if (!tr) return;
+      applyMode("joints");
+      refreshLabels();
+      const mesh = meshes.find((m) => m.userData.joint === tr.dataset.joint && m.visible);
+      if (mesh) select(mesh);
+    });
+
+    function svgRect(p, fill) {
+      return `<rect x="${p.x}" y="${p.z}" width="${p.dx}" height="${p.dz}" fill="${fill}" stroke="#241e16" stroke-width="3"/>`;
+    }
+    function svgLabel(x, y, t) {
+      return `<text x="${x}" y="${y}" font-size="28" font-family="ui-monospace, Menlo, monospace" fill="#241e16">${t}</text>`;
+    }
+    function dimH(x1, x2, y, text) {
+      return `<path d="M${x1} ${y} L${x2} ${y}" stroke="#7a3f16" stroke-width="4" fill="none"/>
+        <path d="M${x1} ${y - 14} L${x1} ${y + 14} M${x2} ${y - 14} L${x2} ${y + 14}" stroke="#7a3f16" stroke-width="4"/>
+        <text x="${(x1 + x2) / 2}" y="${y - 12}" text-anchor="middle" font-size="28" fill="#7a3f16">${text}</text>`;
+    }
+    function dimV(y1, y2, x, text) {
+      return `<path d="M${x} ${y1} L${x} ${y2}" stroke="#7a3f16" stroke-width="4" fill="none"/>
+        <path d="M${x - 14} ${y1} L${x + 14} ${y1} M${x - 14} ${y2} L${x + 14} ${y2}" stroke="#7a3f16" stroke-width="4"/>
+        <text x="${x - 16}" y="${(y1 + y2) / 2 + 10}" text-anchor="end" font-size="28" fill="#7a3f16">${text}</text>`;
+    }
+
+    const frameTop = PARTS.filter((p) => ["frame", "leg", "plate", "ledger"].includes(p.kind));
+    const topSvg = `
+      <div class="sheet">
+        <h3>図1 平面図（すのこ非表示）　縮尺 およそ 1:20</h3>
+        <svg viewBox="-360 -280 2760 1960">
+          ${dimH(0, 2036, -80, "2036")}
+          ${dimH(0, 1018, -160, "1018 上半身")}
+          ${dimH(1018, 2036, -160, "1018 下半身")}
+          ${dimV(0, 1296, -80, "1296")}
+          ${dimV(38, 1258, -180, "1220 内幅")}
+          ${frameTop.map((p) => {
+            const fill = p.kind === "leg" ? "#a67c52" : /F-J/.test(p.id) ? "#d4b06e" : p.module === "foot" ? "#b07f4a" : "#c9a06a";
+            return svgRect(p, fill) + svgLabel(p.x + p.dx / 2 - 40, p.z + p.dz / 2 + 8, p.id);
+          }).join("")}
+        </svg>
+      </div>`;
+
+    const sideSvg = `
+      <div class="sheet">
+        <h3>図2 側面図（左側）</h3>
+        <svg viewBox="-360 -80 2760 680">
+          ${dimH(0, 2036, 520, "2036")}
+          ${dimH(0, 1018, 580, "1018 上半身")}
+          ${dimH(1018, 2036, 580, "1018 下半身")}
+          <g transform="translate(0,450) scale(1,-1)">
+            <path d="M-40 389 L2180 389 M-40 300 L2180 300 M-40 0 L2180 0" stroke="#cfc4b0" stroke-width="2"/>
+            <rect x="0" y="0" width="38" height="389" fill="#a67c52" stroke="#241e16" stroke-width="3"/>
+            <rect x="1960" y="0" width="38" height="389" fill="#a67c52" stroke="#241e16" stroke-width="3"/>
+            <rect x="0" y="300" width="1018" height="89" fill="#c9a06a" stroke="#241e16" stroke-width="3"/>
+            <rect x="1018" y="300" width="1018" height="89" fill="#b07f4a" stroke="#241e16" stroke-width="3"/>
+            <rect x="999" y="300" width="19" height="89" fill="#d4b06e" stroke="#241e16" stroke-width="3"/>
+            <rect x="1018" y="300" width="19" height="89" fill="#d4b06e" stroke="#241e16" stroke-width="3"/>
+            <rect x="910" y="0" width="89" height="389" fill="#a67c52" stroke="#241e16" stroke-width="3"/>
+            <rect x="1037" y="0" width="89" height="389" fill="#a67c52" stroke="#241e16" stroke-width="3"/>
+            <path d="M2080 0 L2080 389" stroke="#7a3f16" stroke-width="4"/>
+            <path d="M2160 0 L2160 300" stroke="#7a3f16" stroke-width="4"/>
+          </g>
+          <text x="40" y="200" font-size="26">L-HL</text>
+          <text x="860" y="200" font-size="24">L-JL-H</text>
+          <text x="1080" y="200" font-size="24">L-JL-F</text>
+          <text x="1880" y="200" font-size="26">L-FL</text>
+          <text x="360" y="80" font-size="26">F-SL-H</text>
+          <text x="1380" y="80" font-size="26">F-SL-F</text>
+          <text x="960" y="40" font-size="24">F-J-H / F-J-F</text>
+          <text x="2090" y="80" font-size="26" fill="#7a3f16">389</text>
+          <text x="2170" y="220" font-size="26" fill="#7a3f16">300 床下</text>
+        </svg>
+      </div>`;
+
+    const frontSvg = `
+      <div class="sheet">
+        <h3>図3 正面図（フット側）と床下収納</h3>
+        <svg viewBox="-280 -40 1900 620">
+          ${dimH(0, 1296, 520, "1296")}
+          ${dimH(38, 1258, 570, "1220")}
+          <g transform="translate(0,450) scale(1,-1)">
+            <rect x="0" y="300" width="1296" height="89" fill="#b07f4a" stroke="#241e16" stroke-width="3"/>
+            <rect x="629" y="262" width="38" height="89" fill="#b07f4a" stroke="#241e16" stroke-width="3"/>
+            <rect x="38" y="0" width="38" height="389" fill="#a67c52" stroke="#241e16" stroke-width="3"/>
+            <rect x="591" y="0" width="38" height="389" fill="#a67c52" stroke="#241e16" stroke-width="3"/>
+            <rect x="1220" y="0" width="38" height="389" fill="#a67c52" stroke="#241e16" stroke-width="3"/>
+            <rect x="70" y="20" width="270" height="280" fill="#e8d2a8" stroke="#7a3f16" stroke-dasharray="10 6" stroke-width="3"/>
+            <rect x="956" y="20" width="270" height="280" fill="#e8d2a8" stroke="#7a3f16" stroke-dasharray="10 6" stroke-width="3"/>
+            <path d="M1360 0 L1360 389" stroke="#7a3f16" stroke-width="4"/>
+            <path d="M1440 0 L1440 300" stroke="#7a3f16" stroke-width="4"/>
+          </g>
+          <text x="110" y="240" font-size="24">箱 270×280</text>
+          <text x="80" y="200" font-size="22">L-FL</text>
+          <text x="520" y="200" font-size="22">L-FC</text>
+          <text x="640" y="250" font-size="22">F-CL-F</text>
+          <text x="1160" y="200" font-size="22">L-FR</text>
+          <text x="560" y="80" font-size="24">F-F</text>
+          <text x="1370" y="80" font-size="26" fill="#7a3f16">389</text>
+          <text x="1450" y="220" font-size="26" fill="#7a3f16">300</text>
+        </svg>
+      </div>`;
+
+    const slatSvg = `
+      <div class="sheet">
+        <h3>図4 上半身すのこ S-H　1216 × 960 × 38</h3>
+        <svg viewBox="-80 -80 1400 1180">
+          ${dimH(0, 1216, -30, "1216")}
+          ${dimV(0, 960, -40, "960")}
+          ${[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+            const y = i * 124.4;
+            return `<rect x="0" y="${y}" width="1216" height="89" fill="#d7b57a" stroke="#241e16" stroke-width="3"/>
+              <text x="20" y="${y + 54}" font-size="26">S-H-${String(i + 1).padStart(2, "0")}</text>`;
+          }).join("")}
+          <rect x="0" y="0" width="89" height="960" fill="none" stroke="#7a3f16" stroke-width="4"/>
+          <rect x="563.5" y="0" width="89" height="960" fill="none" stroke="#7a3f16" stroke-width="4"/>
+          <rect x="1127" y="0" width="89" height="960" fill="none" stroke="#7a3f16" stroke-width="4"/>
+          <text x="8" y="990" font-size="24" fill="#7a3f16">S-H-B1</text>
+          <text x="560" y="990" font-size="24" fill="#7a3f16">S-H-B2</text>
+          <text x="1110" y="990" font-size="24" fill="#7a3f16">S-H-B3</text>
+          <text x="1240" y="60" font-size="24" fill="#7a3f16">89</text>
+          <text x="1240" y="140" font-size="24" fill="#7a3f16">隙間 35</text>
+        </svg>
+      </div>
+      <div class="sheet">
+        <h3>図5 上下分離　木材は左右同じモジュール</h3>
+        <svg viewBox="-80 -80 2800 780">
+          <rect x="0" y="80" width="1018" height="400" fill="#c9a06a" stroke="#241e16" stroke-width="4"/>
+          <rect x="1280" y="80" width="1018" height="400" fill="#b07f4a" stroke="#241e16" stroke-width="4"/>
+          <rect x="999" y="80" width="19" height="400" fill="#d4b06e" stroke="#241e16" stroke-width="3"/>
+          <rect x="1280" y="80" width="19" height="400" fill="#d4b06e" stroke="#241e16" stroke-width="3"/>
+          <text x="400" y="60" font-size="28">上半身 1018 × 1296 × 389</text>
+          <text x="1660" y="60" font-size="28">下半身 1018 × 1296 × 389</text>
+          <text x="40" y="140" font-size="24">F-H / 側枠 / F-J-H / センター / 脚6 / 受け桟 / すのこ</text>
+          <text x="1320" y="140" font-size="24">F-F / 側枠 / F-J-F / センター / 脚6 / 受け桟 / すのこ</text>
+          <text x="40" y="320" font-size="24">脚 L-HL L-HC L-HR L-JL-H L-JC-H L-JR-H</text>
+          <text x="1320" y="320" font-size="24">脚 L-FL L-FC L-FR L-JL-F L-JC-F L-JR-F</text>
+          <path d="M1018 280 L1280 280" stroke="#7a3f16" stroke-width="6"/>
+          <text x="1060" y="260" font-size="26" fill="#7a3f16">J-M 通し6本</text>
+          <text x="40" y="560" font-size="24">カット長さは上下で同じ。1220 / 1018 / 961 / 389 / 834 / 1216 / 960 だけ。</text>
+        </svg>
+      </div>`;
+
+    const jointSvg = `
+      <div class="sheet">
+        <h3>図6 合体　F-J-H と F-J-F を面合わせ（添え板なし）</h3>
+        <svg viewBox="-80 -40 1500 640">
+          <text x="20" y="36" font-size="26">長手断面　1x4 + 1x4 = 38　切り欠きなし</text>
+          <g transform="translate(80,500) scale(1,-1)">
+            <rect x="0" y="300" width="200" height="89" fill="#c9a06a" stroke="#241e16" stroke-width="3"/>
+            <rect x="200" y="300" width="19" height="89" fill="#d4b06e" stroke="#241e16" stroke-width="3"/>
+            <rect x="219" y="300" width="19" height="89" fill="#d4b06e" stroke="#241e16" stroke-width="3"/>
+            <rect x="238" y="300" width="200" height="89" fill="#b07f4a" stroke="#241e16" stroke-width="3"/>
+            <rect x="200" y="337" width="56" height="14" fill="#c45c26"/>
+          </g>
+          <text x="80" y="180" font-size="24">側枠 上半身</text>
+          <text x="280" y="180" font-size="24">F-J-H</text>
+          <text x="400" y="180" font-size="24">F-J-F</text>
+          <text x="520" y="180" font-size="24">側枠 下半身</text>
+          <text x="240" y="360" font-size="26" fill="#7a3f16">J-M　H-B50 ×6 + ナット</text>
+          <text x="20" y="440" font-size="24">上下分離で外すのはこの6本とダボ2本だけ。</text>
+          <text x="20" y="480" font-size="24">F-J は 1220 の 1x4。2440 を半分に切るだけ。</text>
+          <text x="20" y="520" font-size="24">19mm材に鬼目は入れない。合体は通し、側枠からは内側ナット。</text>
+        </svg>
+      </div>
+      <div class="sheet">
+        <h3>図7 ボルト位置</h3>
+        <svg viewBox="-80 -80 2300 1500">
+          <rect x="0" y="0" width="2036" height="1296" fill="none" stroke="#241e16" stroke-width="4"/>
+          <rect x="999" y="38" width="19" height="1220" fill="#d4b06e" stroke="#241e16" stroke-width="3"/>
+          <rect x="1018" y="38" width="19" height="1220" fill="#d4b06e" stroke="#241e16" stroke-width="3"/>
+          <circle cx="19" cy="0" r="14" fill="#c45c26"/><text x="30" y="-20" font-size="24">J-01</text>
+          <circle cx="19" cy="1296" r="14" fill="#c45c26"/><text x="30" y="1336" font-size="24">J-02</text>
+          <circle cx="1008" cy="80" r="12" fill="#c45c26"/>
+          <circle cx="1008" cy="300" r="12" fill="#c45c26"/>
+          <circle cx="1008" cy="500" r="12" fill="#c45c26"/>
+          <circle cx="1008" cy="796" r="12" fill="#c45c26"/>
+          <circle cx="1008" cy="996" r="12" fill="#c45c26"/>
+          <circle cx="1008" cy="1216" r="12" fill="#c45c26"/>
+          <text x="1040" y="520" font-size="26" fill="#7a3f16">J-M ×6</text>
+          <circle cx="2017" cy="0" r="14" fill="#c45c26"/><text x="1900" y="-20" font-size="24">J-05</text>
+          <circle cx="2017" cy="1296" r="14" fill="#c45c26"/><text x="1900" y="1336" font-size="24">J-06</text>
+          <text x="40" y="200" font-size="22">脚6本 上半身</text>
+          <text x="40" y="1100" font-size="22">J-03 / J-04 は F-J-H の左右</text>
+          <text x="1700" y="200" font-size="22">脚6本 下半身</text>
+          <text x="1500" y="1100" font-size="22">J-07 / J-08 は F-J-F の左右</text>
+        </svg>
+      </div>`;
+
+    drawEl.innerHTML = topSvg + sideSvg + frontSvg + slatSvg + jointSvg;
+
+    applyMode("structure");
+    refreshLabels();
+    setCamera("low");
+    document.getElementById("camera").value = "low";
+    resize();
+    requestAnimationFrame(resize);
+
+    function tick() {
+      controls.update();
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    }
+    tick();
+  </script>
+</body>
+</html>
