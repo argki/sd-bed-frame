@@ -8,7 +8,7 @@
 
 ## 公開
 
-GitHub Pages（`main` へ push すると Actions が公開する）。
+GitHub Pages（`main` のルートを公開する）。
 
 - ビューア: https://argki.github.io/sd-bed-frame/
 - リポジトリ: https://github.com/argki/sd-bed-frame
