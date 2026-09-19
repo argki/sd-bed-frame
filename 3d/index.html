@@ -14,9 +14,9 @@
       --accent: #7a3f16;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    html, body { margin: 0; height: 100%; height: 100dvh; background: var(--bg); color: var(--ink);
       font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; }
-    #app { display: grid; grid-template-rows: auto 1fr; height: 100%; }
+    #app { display: grid; grid-template-rows: auto 1fr; height: 100%; height: 100dvh; }
     header {
       display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
       padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--panel);
@@ -31,6 +31,8 @@
     }
     button.active, button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
     #main { display: grid; grid-template-columns: 1fr 300px; min-height: 0; }
+    #main.side-hidden { grid-template-columns: 1fr; }
+    #main.side-hidden #side { display: none; }
     #stage { position: relative; min-width: 0; background: #d9d1c3; }
     #view, #draw { position: absolute; inset: 0; }
     #draw { display: none; overflow: auto; background: #f3efe6; padding: 16px; }
@@ -65,6 +67,18 @@
     .sheet h3 { margin: 0 0 8px; font-size: 13px; }
     .sheet svg { width: 100%; height: auto; display: block; }
     a { color: var(--accent); }
+    @media (max-width: 720px) {
+      header { padding: 6px 8px; gap: 8px; }
+      header p { display: none; }
+      #toolbar { margin-left: 0; }
+      #main { grid-template-columns: 1fr; }
+      #side {
+        position: fixed; left: 0; right: 0; bottom: 0;
+        max-height: min(70dvh, 520px); z-index: 5;
+        border-left: none; border-top: 1px solid var(--line);
+        box-shadow: 0 -8px 24px rgba(36, 30, 22, 0.14);
+      }
+    }
   </style>
 </head>
 <body>
@@ -92,6 +106,7 @@
         <button id="toggleIds" aria-pressed="true">部材ID</button>
         <button id="toggleDims" aria-pressed="true">寸法</button>
         <button id="toggleBoxes" aria-pressed="false">段ボール</button>
+        <button id="toggleSide" aria-pressed="true">一覧</button>
       </div>
     </header>
     <div id="main">
@@ -492,6 +507,20 @@
     document.getElementById("toggleBoxes").addEventListener("click", (e) => {
       boxGroup.visible = !boxGroup.visible;
       e.currentTarget.setAttribute("aria-pressed", String(boxGroup.visible));
+    });
+    const mainEl = document.getElementById("main");
+    const sideBtn = document.getElementById("toggleSide");
+    const narrow = window.matchMedia("(max-width: 720px)");
+    function setSideHidden(hidden) {
+      mainEl.classList.toggle("side-hidden", hidden);
+      sideBtn.setAttribute("aria-pressed", String(!hidden));
+      resize();
+      requestAnimationFrame(resize);
+    }
+    setSideHidden(narrow.matches);
+    narrow.addEventListener("change", (e) => setSideHidden(e.matches));
+    sideBtn.addEventListener("click", () => {
+      setSideHidden(!mainEl.classList.contains("side-hidden"));
     });
 
     const drawEl = document.getElementById("draw");
