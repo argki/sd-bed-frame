@@ -33,8 +33,8 @@
     #main { display: grid; grid-template-columns: 1fr 300px; min-height: 0; }
     #main.side-hidden { grid-template-columns: 1fr; }
     #main.side-hidden #side { display: none; }
-    #stage { position: relative; min-width: 0; background: #d9d1c3; }
-    #view, #draw { position: absolute; inset: 0; }
+    #stage { position: relative; z-index: 0; min-width: 0; background: #d9d1c3; isolation: isolate; }
+    #view, #draw { position: absolute; inset: 0; overflow: hidden; }
     #draw { display: none; overflow: auto; background: #f3efe6; padding: 16px; }
     #draw.visible { display: block; }
     #view.hidden { visibility: hidden; }
@@ -74,7 +74,7 @@
       #main { grid-template-columns: 1fr; }
       #side {
         position: fixed; left: 0; right: 0; bottom: 0;
-        max-height: min(70dvh, 520px); z-index: 5;
+        height: 50dvh; max-height: 50dvh; z-index: 20;
         border-left: none; border-top: 1px solid var(--line);
         box-shadow: 0 -8px 24px rgba(36, 30, 22, 0.14);
       }
