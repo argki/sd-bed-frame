@@ -38,6 +38,14 @@ export type FrameModule = {
   readonly name: string;
   /** 組み立て済みの状態での、ベッド全体の原点からの位置。 */
   readonly origin: Vec3;
+  /** 箱を出し入れする開口が、ベッドの左右どちらの長辺にあるか。left は x が小さい側。 */
+  readonly openSide: "left" | "right";
+};
+
+/** 軸に沿った直方体。min の各座標は max 以下。 */
+export type Box3 = {
+  readonly min: Vec3;
+  readonly max: Vec3;
 };
 
 export function partCount(part: Part): number {

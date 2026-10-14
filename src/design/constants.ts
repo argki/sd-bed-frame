@@ -13,6 +13,12 @@ export const STORAGE_BOX = {
   depth: 270,
 } as const;
 
+/** 箱を出し入れするために、箱の高さと横幅に足す余裕。横幅は左右に半分ずつ割り振る。 */
+export const STORAGE_CLEARANCE = 20;
+
+/** 天板のすのこの、板と板のすき間の上限。 */
+export const SLAT_MAX_GAP = 50;
+
 /** 1x4 材（12f）。 */
 export const LUMBER = {
   thickness: 19,
