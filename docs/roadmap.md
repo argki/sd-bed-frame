@@ -5,7 +5,7 @@
 - [x] Cursor 用のルールとコマンドを追加
   - 完了条件: `.cursor/rules/`、`.cursor/commands/`、この roadmap がある
 
-- [ ] Vite + React + TypeScript の雛形を作成
+- [x] Vite + React + TypeScript の雛形を作成
   - 完了条件: pnpm、Vite、React、TypeScript（strict）、Tailwind CSS、Biome、Vitest の設定があり、空のトップページが表示できる。`.gitignore` がある
 
 - [ ] Docker Compose で開発、プレビュー、フォーマット、lint、テストを実行できるようにする
