@@ -64,9 +64,9 @@ describe("createCutPlan", () => {
   it("フレームの木取り本数とカット回数を求める", () => {
     const plan = createCutPlan(FRAME_PARTS);
 
-    expect(plan.boardCount).toBe(21);
-    expect(plan.pieceCount).toBe(108);
-    expect(plan.cutCount).toBe(108);
+    expect(plan.boardCount).toBe(10);
+    expect(plan.pieceCount).toBe(56);
+    expect(plan.cutCount).toBe(56);
   });
 
   it("材料費、カット代、合計を求める", () => {

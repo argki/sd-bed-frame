@@ -6,7 +6,9 @@ import {
   MODULE_SIZE,
   moduleParts,
   moduleStorageSlots,
+  POST_HEIGHT,
   SLAT_GAP,
+  STORAGE_CLEAR_HEIGHT,
 } from "./frame";
 import { boxFrom, contains, intersects, placementBox } from "./geometry";
 import type { Box3, FrameModule } from "./types";
@@ -74,6 +76,10 @@ describe.each(FRAME_MODULES)("モジュール $name", (module) => {
   const parts = partBoxes(module);
   const slots = moduleStorageSlots(module).map((s) => boxFrom(s.position, s.size));
 
+  it("部材を14本で構成する", () => {
+    expect(parts).toHaveLength(14);
+  });
+
   it("部材がすべてモジュールの外寸に収まる", () => {
     for (const { box } of parts) {
       expect(contains(moduleBounds, box)).toBe(true);
@@ -130,9 +136,9 @@ describe.each(FRAME_MODULES)("モジュール $name", (module) => {
 });
 
 describe("フレームの高さ", () => {
-  it("すのこの下に、箱の高さと余裕を足した空間がある", () => {
-    expect(FRAME_HEIGHT - LUMBER.thickness).toBeGreaterThanOrEqual(
-      STORAGE_BOX.height + STORAGE_CLEARANCE,
-    );
+  it("上横桟の下に、箱の高さと余裕を足した空間がある", () => {
+    expect(STORAGE_CLEAR_HEIGHT).toBe(STORAGE_BOX.height + STORAGE_CLEARANCE);
+    expect(POST_HEIGHT - LUMBER.width).toBe(STORAGE_CLEAR_HEIGHT);
+    expect(FRAME_HEIGHT).toBe(POST_HEIGHT + LUMBER.thickness);
   });
 });

@@ -10,21 +10,22 @@ export const MODULE_SIZE = {
   length: MATTRESS.length / 2,
 } as const;
 
-/** 壁1面に積む 1x4 の段数。箱の高さに余裕を足した高さを超える最小の段数にする。 */
-export const WALL_BOARD_COUNT = Math.ceil((STORAGE_BOX.height + STORAGE_CLEARANCE) / B);
-export const WALL_HEIGHT = WALL_BOARD_COUNT * B;
+/** 箱を出し入れする開口の高さ。 */
+export const STORAGE_CLEAR_HEIGHT = STORAGE_BOX.height + STORAGE_CLEARANCE;
+/** 柱の長さ。柱の上端に横桟とすのこを載せる。 */
+export const POST_HEIGHT = STORAGE_CLEAR_HEIGHT + B;
 /** 床からすのこの上面までの高さ。 */
-export const FRAME_HEIGHT = WALL_HEIGHT + T;
+export const FRAME_HEIGHT = POST_HEIGHT + T;
 
 /** すのこの枚数。すき間が SLAT_MAX_GAP 以下になる最小の枚数にする。 */
 export const SLAT_COUNT = minSlatCount(MODULE_SIZE.width);
 export const SLAT_GAP = (MODULE_SIZE.width - SLAT_COUNT * B) / (SLAT_COUNT - 1);
 
-/** 背板とすき間なく接する、端板と仕切り板の長さ。 */
-const CROSS_BOARD_LENGTH = MODULE_SIZE.width - T;
-/** 箱を置ける奥行き。開口から背板の内側まで。 */
-export const STORAGE_DEPTH = MODULE_SIZE.width - T;
-/** 仕切り板の z 位置。2つの区画が同じ幅になるようにする。 */
+/** 左右の柱の間に渡す横桟の長さ。 */
+export const CROSS_RAIL_LENGTH = MODULE_SIZE.width - 2 * B;
+/** 箱を置ける奥行き。反対側の開口まで使える。 */
+export const STORAGE_DEPTH = MODULE_SIZE.width;
+/** 中央の上横桟の z 位置。2つの区画が同じ幅になるようにする。 */
 const DIVIDER_Z = (MODULE_SIZE.length - T) / 2;
 
 /** 開口から見た区画の z 範囲。端板、仕切り板の厚みを除く。 */
@@ -73,10 +74,6 @@ export const STORED_BOX_SIZE: Vec3 = {
 };
 
 export function moduleParts(module: FrameModule): Part[] {
-  const levels = Array.from({ length: WALL_BOARD_COUNT }, (_, i) => i * B);
-  const crossBoards = (z: number): PartPlacement[] =>
-    levels.map((y) => ({ position: { x: 0, y, z }, lengthAxis: "x", widthAxis: "y" }));
-
   const parts: Part[] = [
     {
       id: `${module.id}-slat`,
@@ -84,46 +81,47 @@ export function moduleParts(module: FrameModule): Part[] {
       moduleId: module.id,
       length: MODULE_SIZE.length,
       placements: Array.from({ length: SLAT_COUNT }, (_, i) => ({
-        position: { x: i * (B + SLAT_GAP), y: WALL_HEIGHT, z: 0 },
+        position: { x: i * (B + SLAT_GAP), y: POST_HEIGHT, z: 0 },
         lengthAxis: "z",
         widthAxis: "x",
       })),
     },
     {
-      id: `${module.id}-back`,
-      name: "背板",
+      id: `${module.id}-post`,
+      name: "柱",
       moduleId: module.id,
-      length: MODULE_SIZE.length,
-      placements: levels.map((y) => ({
-        position: { x: MODULE_SIZE.width - T, y, z: 0 },
-        lengthAxis: "z",
+      length: POST_HEIGHT,
+      placements: [0, MODULE_SIZE.width - B].flatMap((x) =>
+        [0, MODULE_SIZE.length - T].map(
+          (z): PartPlacement => ({
+            position: { x, y: 0, z },
+            lengthAxis: "y",
+            widthAxis: "x",
+          }),
+        ),
+      ),
+    },
+    {
+      id: `${module.id}-upper-rail`,
+      name: "上横桟",
+      moduleId: module.id,
+      length: CROSS_RAIL_LENGTH,
+      placements: [0, DIVIDER_Z, MODULE_SIZE.length - T].map((z) => ({
+        position: { x: B, y: STORAGE_CLEAR_HEIGHT, z },
+        lengthAxis: "x",
         widthAxis: "y",
       })),
     },
     {
-      id: `${module.id}-end`,
-      name: "端板",
+      id: `${module.id}-lower-rail`,
+      name: "下横桟",
       moduleId: module.id,
-      length: CROSS_BOARD_LENGTH,
-      placements: [...crossBoards(0), ...crossBoards(MODULE_SIZE.length - T)],
-    },
-    {
-      id: `${module.id}-divider`,
-      name: "仕切り板",
-      moduleId: module.id,
-      length: CROSS_BOARD_LENGTH,
-      placements: crossBoards(DIVIDER_Z),
-    },
-    {
-      id: `${module.id}-cleat`,
-      name: "縦桟",
-      moduleId: module.id,
-      length: WALL_HEIGHT,
-      placements: [0, MODULE_SIZE.width - T - B].flatMap((x) =>
-        [T, DIVIDER_Z - T, MODULE_SIZE.length - 2 * T].map(
-          (z): PartPlacement => ({ position: { x, y: 0, z }, lengthAxis: "y", widthAxis: "x" }),
-        ),
-      ),
+      length: CROSS_RAIL_LENGTH,
+      placements: [0, MODULE_SIZE.length - T].map((z) => ({
+        position: { x: B, y: 0, z },
+        lengthAxis: "x",
+        widthAxis: "y",
+      })),
     },
   ];
 
