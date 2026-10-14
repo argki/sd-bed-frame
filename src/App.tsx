@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { CutPlanSection } from "./components/CutPlanSection";
 import { MATTRESS, PRICE, STORAGE_BOX } from "./design/constants";
 import { FRAME_CUT_PLAN } from "./design/cut-plan";
 import { FRAME_HEIGHT, FRAME_MODULES } from "./design/frame";
@@ -137,6 +138,8 @@ export function App() {
               ))}
             </div>
           </section>
+
+          <CutPlanSection />
 
           <section
             aria-labelledby="cost-heading"
