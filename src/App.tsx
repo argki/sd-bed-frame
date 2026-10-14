@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CutPlanSection } from "./components/CutPlanSection";
+import { FrameView } from "./components/FrameView";
 import { MATTRESS, PRICE, STORAGE_BOX } from "./design/constants";
 import { FRAME_CUT_PLAN } from "./design/cut-plan";
 import { FRAME_HEIGHT, FRAME_MODULES } from "./design/frame";
@@ -74,6 +75,8 @@ export function App() {
         </section>
 
         <div className="mx-auto max-w-6xl space-y-14 px-5 py-12 sm:px-8 lg:py-16">
+          <FrameView />
+
           <section aria-labelledby="purchase-heading">
             <SectionHeading
               id="purchase-heading"
