@@ -1,0 +1,55 @@
+---
+description: セミダブル収納ベッドフレーム DIY 設計サイトの要件と技術方針
+alwaysApply: true
+---
+
+# プロジェクト概要
+
+ダンボール箱を収納できる、4分割式ベースのセミダブルベッドフレームを 1x4 材で DIY するための設計を作り、GitHub Pages で公開する。
+
+参考イメージ: https://amzn.asia/d/04YD9cwX （4分割式の収納ベース）
+
+## 設計の前提
+
+- マットレスはセミダブル（幅 1200mm × 長さ 1950mm）。
+- 収納するダンボール箱は、高さ 280mm × 横 380mm × 奥行き 270mm。箱の出し入れに必要な余裕を内寸に含める。
+- ベースは4分割式。モジュールごとに運べる大きさにする。
+- 外観は 1x4 材を組み合わせた見た目にする。
+- 1x4 材の断面は 19mm × 89mm、12f の長さは 3650mm として計算する。
+- 価格はビバホームで 1x4 12f が 1本 712円、カット代が 1カット 50円。
+- のこぎりの刃の厚み（カットロス）は定数として1か所で定義し、変更できるようにする。
+
+寸法、価格、カットロスなどの数値は `src/design/` 配下の1か所で定義し、部材リスト、カット図、3D表示のすべてがそこから値を読む。表示側に数値を直書きしない。
+
+## Web ページで見せるもの
+
+1. 購入する部材と点数、費用（材料費とカット代の内訳）
+2. カット寸法図（12f 材1本ごとの木取り図）
+3. 組み立て済みの 3D モデル
+4. 3D の爆発図（組み立て済みと分解状態を切り替えられる）
+
+## 技術方針
+
+- Vite + React + TypeScript（strict）
+- 3D 表示は three.js を @react-three/fiber と @react-three/drei 経由で使う
+- スタイルは Tailwind CSS
+- フォーマットと lint は Biome
+- テストは Vitest。寸法計算と木取り計算はテストを書く
+- パッケージ管理は pnpm
+- GitHub Actions で build し、GitHub Pages へデプロイする
+
+## Docker Compose
+
+ローカルでの動作確認とフォーマットは、ホストに Node.js を入れずに docker compose で実行できるようにする。
+
+- `docker compose up dev` で開発サーバーを起動する
+- `docker compose run --rm preview` で本番ビルドをプレビューする（GitHub Pages と同じ base パス）
+- `docker compose run --rm format` でソースコードをフォーマットする
+- `docker compose run --rm lint` で lint と型チェックを行う
+- `docker compose run --rm test` でテストを行う
+
+## 作業の進め方
+
+- 作業計画は `docs/roadmap.md` にコミット単位で書く。
+- 1コミットには1つの目的だけを入れる。
+- コミットメッセージは `.cursor/rules/commit-message.mdc` に従う。
