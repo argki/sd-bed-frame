@@ -43,7 +43,7 @@ alwaysApply: true
 ローカルでの動作確認とフォーマットは、ホストに Node.js を入れずに docker compose で実行できるようにする。
 
 - `docker compose up dev` で開発サーバーを起動する
-- `docker compose run --rm preview` で本番ビルドをプレビューする（GitHub Pages と同じ base パス）
+- `docker compose up preview` で本番ビルドをプレビューする（GitHub Pages と同じ base パス `/sd-bed-frame/`）。`docker compose run` はポートを公開しないため、`up` を使う
 - `docker compose run --rm format` でソースコードをフォーマットする
 - `docker compose run --rm lint` で lint と型チェックを行う
 - `docker compose run --rm test` でテストを行う

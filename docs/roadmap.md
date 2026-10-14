@@ -8,7 +8,7 @@
 - [x] Vite + React + TypeScript の雛形を作成
   - 完了条件: pnpm、Vite、React、TypeScript（strict）、Tailwind CSS、Biome、Vitest の設定があり、空のトップページが表示できる。`.gitignore` がある
 
-- [ ] Docker Compose で開発、プレビュー、フォーマット、lint、テストを実行できるようにする
+- [x] Docker Compose で開発、プレビュー、フォーマット、lint、テストを実行できるようにする
   - 完了条件: `dev`、`preview`、`format`、`lint`、`test` の各サービスが動く。`preview` は GitHub Pages と同じ base パスで動く
 
 - [ ] 設計定数と部材の型を定義
