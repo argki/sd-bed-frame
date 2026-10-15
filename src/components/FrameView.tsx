@@ -1,6 +1,7 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useState } from "react";
+import { CanvasTexture, Matrix4, Quaternion, SRGBColorSpace, Vector3 } from "three";
 import { MATTRESS } from "../design/constants";
 import { type ExplodeMode, explodedPosition } from "../design/explode";
 import {
@@ -41,6 +42,7 @@ const bedCenter: [number, number, number] = [
 type Solid = {
   readonly key: string;
   readonly moduleId: string;
+  readonly name: string | null;
   readonly position: [number, number, number];
   readonly size: [number, number, number];
   readonly color: string;
@@ -57,6 +59,7 @@ export function FrameView() {
   const boxes = useMemo(() => boxSolids(), []);
   const screws = useMemo(() => screwMarkers(), []);
   const centers = useMemo(() => moduleCenters(), []);
+  const nameTextures = useMemo(() => partNameTextures(parts), [parts]);
 
   return (
     <section aria-labelledby="frame-view-heading">
@@ -155,6 +158,20 @@ export function FrameView() {
           {parts.map((solid) => (
             <Board key={solid.key} solid={solid} position={place(solid, centers, amount, mode)} />
           ))}
+          {parts.map((solid) => {
+            const texture = solid.name ? nameTextures.get(solid.name) : undefined;
+            if (!texture) {
+              return null;
+            }
+            return (
+              <BoardName
+                key={`${solid.key}-name`}
+                solid={solid}
+                position={place(solid, centers, amount, mode)}
+                texture={texture}
+              />
+            );
+          })}
           {showBoxes &&
             boxes.map((solid) => (
               <Board key={solid.key} solid={solid} position={place(solid, centers, amount, mode)} />
@@ -248,6 +265,179 @@ function place(
     mode,
   );
   return [position.x, position.y, position.z];
+}
+
+/** 印字を面から浮かせる量。部材と一緒に平行移動する。 */
+const LABEL_GAP = 1.2;
+
+type LabelPose = {
+  readonly offset: readonly [number, number, number];
+  readonly quaternion: Quaternion;
+  readonly width: number;
+  readonly height: number;
+};
+
+function BoardName({
+  solid,
+  position,
+  texture,
+}: {
+  solid: Solid;
+  position: [number, number, number];
+  texture: CanvasTexture;
+}) {
+  const image = texture.image;
+  const aspect =
+    image instanceof HTMLCanvasElement && image.height > 0 ? image.width / image.height : 1;
+  const poses = useMemo(() => labelPoses(solid.size, aspect), [solid.size, aspect]);
+  return (
+    <group>
+      {poses.map((pose) => (
+        <mesh
+          key={pose.offset.join(",")}
+          position={[
+            position[0] + pose.offset[0],
+            position[1] + pose.offset[1],
+            position[2] + pose.offset[2],
+          ]}
+          quaternion={pose.quaternion}
+        >
+          <planeGeometry args={[pose.width, pose.height]} />
+          <meshBasicMaterial
+            map={texture}
+            transparent
+            depthWrite={false}
+            toneMapped={false}
+            polygonOffset
+            polygonOffsetFactor={-4}
+            polygonOffsetUnits={-4}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function partNameTextures(parts: readonly Solid[]): Map<string, CanvasTexture> {
+  const textures = new Map<string, CanvasTexture>();
+  for (const solid of parts) {
+    if (!solid.name || textures.has(solid.name)) {
+      continue;
+    }
+    textures.set(solid.name, createNameTexture(solid.name, solid.color));
+  }
+  return textures;
+}
+
+function createNameTexture(name: string, wood: string): CanvasTexture {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("部材名の描画に失敗した");
+  }
+  const fontSize = 96;
+  const font = `700 ${fontSize}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif`;
+  ctx.font = font;
+  const textWidth = Math.ceil(ctx.measureText(name).width);
+  const pad = 20;
+  canvas.width = Math.max(textWidth + pad * 2, fontSize);
+  canvas.height = fontSize + pad * 2;
+  ctx.font = font;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 16;
+  ctx.strokeStyle = isDark(wood) ? "rgba(28, 25, 23, 0.55)" : "rgba(255, 250, 240, 0.9)";
+  ctx.fillStyle = isDark(wood) ? "#faf7f2" : "#1c1917";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const x = canvas.width / 2;
+  const y = canvas.height / 2;
+  ctx.strokeText(name, x, y);
+  ctx.fillText(name, x, y);
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function isDark(hex: string): boolean {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const red = (value >> 16) & 255;
+  const green = (value >> 8) & 255;
+  const blue = value & 255;
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue < 150;
+}
+
+/** 厚さ方向の両面の中央に、文字の縦横比を保って載せる。 */
+function labelPoses(
+  size: readonly [number, number, number],
+  aspect: number,
+): readonly [LabelPose, LabelPose] {
+  const [sx, sy, sz] = size;
+  if (sy <= sx && sy <= sz) {
+    const alongZ = sz >= sx;
+    const [width, height] = fitLabel(alongZ ? sz : sx, alongZ ? sx : sz, aspect);
+    const textDir = alongZ ? new Vector3(0, 0, 1) : new Vector3(1, 0, 0);
+    return facePair(new Vector3(0, 1, 0), textDir, sy / 2, width, height);
+  }
+  if (sz <= sx && sz <= sy) {
+    const [width, height] = fitLabel(sx, sy, aspect);
+    return facePair(new Vector3(0, 0, 1), new Vector3(1, 0, 0), sz / 2, width, height);
+  }
+  const alongZ = sz >= sy;
+  const [width, height] = fitLabel(alongZ ? sz : sy, alongZ ? sy : sz, aspect);
+  const textDir = alongZ ? new Vector3(0, 0, 1) : new Vector3(0, 1, 0);
+  return facePair(new Vector3(1, 0, 0), textDir, sx / 2, width, height);
+}
+
+function facePair(
+  normal: Vector3,
+  textDir: Vector3,
+  halfExtent: number,
+  width: number,
+  height: number,
+): readonly [LabelPose, LabelPose] {
+  return [
+    facePose(normal, textDir, halfExtent, width, height),
+    facePose(normal.clone().negate(), textDir.clone().negate(), halfExtent, width, height),
+  ];
+}
+
+function facePose(
+  normal: Vector3,
+  textDir: Vector3,
+  halfExtent: number,
+  width: number,
+  height: number,
+): LabelPose {
+  const direction = normal.clone().normalize();
+  const gap = halfExtent + LABEL_GAP;
+  return {
+    offset: [direction.x * gap, direction.y * gap, direction.z * gap],
+    quaternion: planeQuaternion(textDir, direction),
+    width,
+    height,
+  };
+}
+
+function fitLabel(along: number, across: number, aspect: number): [number, number] {
+  const maxAlong = along * 0.84;
+  const maxAcross = across * 0.7;
+  let width = maxAcross * aspect;
+  let height = maxAcross;
+  if (width > maxAlong) {
+    width = maxAlong;
+    height = width / aspect;
+  }
+  return [width, height];
+}
+
+function planeQuaternion(textDir: Vector3, normal: Vector3): Quaternion {
+  const x = textDir.clone().normalize();
+  const z = normal.clone().normalize();
+  const y = new Vector3().crossVectors(z, x).normalize();
+  x.crossVectors(y, z).normalize();
+  return new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(x, y, z));
 }
 
 type ScrewMarker = {
@@ -390,6 +580,7 @@ function placementsOf(part: Part, origins: ReadonlyMap<string, Vec3>, color: str
     return {
       key: `${part.id}-${index}`,
       moduleId: part.moduleId,
+      name: part.name,
       position: center(origin, placement.position, size),
       size: [size.x, size.y, size.z],
       color,
@@ -410,6 +601,7 @@ function solidFrom(
   return {
     key,
     moduleId: slot.moduleId,
+    name: null,
     position: center(origin, slot.position, slot.size),
     size: [slot.size.x, slot.size.y, slot.size.z],
     color,
