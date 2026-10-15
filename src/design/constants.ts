@@ -62,3 +62,19 @@ export const FASTENER = {
     usage: "すのこの上面から、接している柱と上横桟の木口へ打つ",
   },
 } as const;
+
+/**
+ * モジュール同士を留める六角ボルト。
+ * ねじは木材に切らず、六角ナットへかける。座金はボルト1本につき両側で2枚。
+ * 長さは、重ねた材の厚みに endAllowance（座金2枚、ナット、ナットから出るねじ山）を足して足りるものを短い順に選ぶ。
+ * 税込価格は、購入リストへ出すときにビバホームの掲載に合わせる。
+ */
+export const MODULE_BOLT = {
+  name: "六角ボルト",
+  diameter: 6,
+  nutName: "六角ナット",
+  washerName: "平座金",
+  washersPerBolt: 2,
+  endAllowance: 12,
+  lengths: [50, 200],
+} as const;
