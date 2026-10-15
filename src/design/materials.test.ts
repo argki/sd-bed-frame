@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { FASTENER } from "./constants";
+import { FASTENER, MODULE_BOLT, MODULE_FASTENER } from "./constants";
 import { FRAME_JOINTS, SCREWS_PER_RAIL_END, SCREWS_PER_SLAT_SUPPORT } from "./joints";
 import {
   FASTENER_SUMMARY,
+  MODULE_HARDWARE_SUMMARY,
   PART_SUMMARY,
   PROJECT_COST,
   PURCHASE_ITEMS,
   packsToBuy,
   summarizeParts,
 } from "./materials";
+import { MODULE_JOINTS } from "./module-joints";
 import type { Part } from "./types";
 
 describe("summarizeParts", () => {
@@ -72,12 +74,41 @@ describe("表示用の部材集計", () => {
     );
   });
 
-  it("合計に木材、コーススレッド、カット代を含める", () => {
+  it("合計に木材、コーススレッド、モジュールの連結金物、カット代を含める", () => {
     expect(PROJECT_COST.totalCost).toBe(
       PROJECT_COST.lumberCost + PROJECT_COST.fastenerCost + PROJECT_COST.cutCost,
     );
     expect(PROJECT_COST.fastenerCost).toBe(
-      FASTENER_SUMMARY.reduce((sum, fastener) => sum + fastener.subtotal, 0),
+      FASTENER_SUMMARY.reduce((sum, fastener) => sum + fastener.subtotal, 0) +
+        MODULE_HARDWARE_SUMMARY.reduce((sum, item) => sum + item.subtotal, 0),
     );
+  });
+
+  it("モジュールのボルト、ナット、座金は使用数を入数で切り上げて買う", () => {
+    const bolts = [MODULE_FASTENER.acrossThickness, MODULE_FASTENER.acrossWidth];
+    let nuts = 0;
+    let washers = 0;
+    for (const bolt of bolts) {
+      const used = MODULE_JOINTS.filter((joint) => joint.boltLength === bolt.length).reduce(
+        (sum, joint) => sum + joint.positions.length,
+        0,
+      );
+      const item = MODULE_HARDWARE_SUMMARY.find((row) => row.id === bolt.id);
+      expect(item?.used).toBe(used);
+      expect(item?.packPrice).toBe(bolt.packPrice);
+      expect(item?.packCount).toBe(packsToBuy(used, bolt.packSize));
+      nuts += used * bolt.nutsPerBolt;
+      washers += used * MODULE_BOLT.washersPerBolt;
+    }
+    expect(MODULE_HARDWARE_SUMMARY.find((row) => row.id === MODULE_FASTENER.nut.id)?.used).toBe(
+      nuts,
+    );
+    expect(MODULE_HARDWARE_SUMMARY.find((row) => row.id === MODULE_FASTENER.washer.id)?.used).toBe(
+      washers,
+    );
+    for (const item of MODULE_HARDWARE_SUMMARY) {
+      expect(PURCHASE_ITEMS.some((purchase) => purchase.name === item.name)).toBe(true);
+      expect(item.subtotal).toBe(item.packCount * item.packPrice);
+    }
   });
 });

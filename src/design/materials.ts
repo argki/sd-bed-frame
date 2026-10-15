@@ -1,7 +1,8 @@
-import { FASTENER, LUMBER, PRICE } from "./constants";
+import { FASTENER, LUMBER, MODULE_BOLT, MODULE_FASTENER, PRICE } from "./constants";
 import { FRAME_CUT_PLAN } from "./cut-plan";
 import { FRAME_PARTS } from "./frame";
 import { FRAME_JOINTS } from "./joints";
+import { MODULE_JOINTS } from "./module-joints";
 import type { Part } from "./types";
 
 export type PartSummary = {
@@ -39,6 +40,23 @@ export const PART_SUMMARY = summarizeParts(FRAME_PARTS);
 export const FASTENER_SUMMARY: readonly FastenerSummary[] =
   Object.values(FASTENER).map(summarizeFastener);
 
+export type HardwareSummary = {
+  readonly id: string;
+  readonly name: string;
+  readonly dimensions: string;
+  readonly usage: string;
+  readonly used: number;
+  readonly packSize: number;
+  readonly packCount: number;
+  readonly packPrice: number;
+  readonly subtotal: number;
+  readonly unit: string;
+};
+
+const moduleBolts = [MODULE_FASTENER.acrossThickness, MODULE_FASTENER.acrossWidth] as const;
+
+export const MODULE_HARDWARE_SUMMARY: readonly HardwareSummary[] = summarizeModuleHardware();
+
 const lumberItem: PurchaseItem = {
   name: "1x4材 12f",
   dimensions: `${LUMBER.thickness} × ${LUMBER.width} × ${LUMBER.length} mm`,
@@ -57,11 +75,26 @@ const fastenerItems: readonly PurchaseItem[] = FASTENER_SUMMARY.map((fastener) =
   subtotal: fastener.subtotal,
 }));
 
-export const PURCHASE_ITEMS: readonly PurchaseItem[] = [lumberItem, ...fastenerItems];
+const hardwareItems: readonly PurchaseItem[] = MODULE_HARDWARE_SUMMARY.map((item) => ({
+  name: item.name,
+  dimensions: item.dimensions,
+  quantity: item.packCount,
+  unit: item.unit,
+  unitPrice: item.packPrice,
+  subtotal: item.subtotal,
+}));
 
-const fastenerCost = FASTENER_SUMMARY.reduce((sum, fastener) => sum + fastener.subtotal, 0);
+export const PURCHASE_ITEMS: readonly PurchaseItem[] = [
+  lumberItem,
+  ...fastenerItems,
+  ...hardwareItems,
+];
 
-/** 木材、コーススレッド、カット代を合わせた費用。 */
+const fastenerCost =
+  FASTENER_SUMMARY.reduce((sum, fastener) => sum + fastener.subtotal, 0) +
+  MODULE_HARDWARE_SUMMARY.reduce((sum, item) => sum + item.subtotal, 0);
+
+/** 木材、コーススレッド、モジュールの連結金物、カット代を合わせた費用。 */
 export const PROJECT_COST = {
   lumberCost: FRAME_CUT_PLAN.cost.materialCost,
   fastenerCost,
@@ -91,6 +124,78 @@ export function packsToBuy(used: number, packSize: number): number {
     throw new Error("使用本数は0以上、入数は1以上の整数にする");
   }
   return Math.ceil(used / packSize);
+}
+
+function summarizeModuleHardware(): HardwareSummary[] {
+  for (const joint of MODULE_JOINTS) {
+    if (!moduleBolts.some((bolt) => bolt.length === joint.boltLength)) {
+      throw new Error(`長さ ${joint.boltLength}mm のモジュールボルトの購入品がない`);
+    }
+  }
+
+  const bolts = moduleBolts.map((bolt) => {
+    const used = boltCount(bolt.length);
+    const packCount = packsToBuy(used, bolt.packSize);
+    const cut = bolt.stockLength === bolt.length ? "" : `、${bolt.length}mmに切る`;
+    return {
+      id: bolt.id,
+      name: `${bolt.name} ${bolt.diameter}×${bolt.stockLength}`,
+      dimensions: `${bolt.diameter} × ${bolt.stockLength} mm（${bolt.packSize}本入、使用${used}本${cut}）`,
+      usage: bolt.usage,
+      used,
+      packSize: bolt.packSize,
+      packCount,
+      packPrice: bolt.packPrice,
+      subtotal: packCount * bolt.packPrice,
+      unit: bolt.unit,
+    };
+  });
+
+  const nutUsed = moduleBolts.reduce(
+    (sum, bolt) => sum + boltCount(bolt.length) * bolt.nutsPerBolt,
+    0,
+  );
+  const washerUsed = boltTotal() * MODULE_BOLT.washersPerBolt;
+  return [
+    ...bolts,
+    packItem(MODULE_FASTENER.nut, nutUsed, `M${MODULE_FASTENER.nut.diameter}`),
+    packItem(
+      MODULE_FASTENER.washer,
+      washerUsed,
+      `${MODULE_FASTENER.washer.diameter}×${MODULE_FASTENER.washer.outerDiameter}×${MODULE_FASTENER.washer.thickness.toFixed(1)} mm`,
+    ),
+  ];
+}
+
+function boltCount(length: number): number {
+  return MODULE_JOINTS.filter((joint) => joint.boltLength === length).reduce(
+    (sum, joint) => sum + joint.positions.length,
+    0,
+  );
+}
+
+function boltTotal(): number {
+  return MODULE_JOINTS.reduce((sum, joint) => sum + joint.positions.length, 0);
+}
+
+function packItem(
+  item: typeof MODULE_FASTENER.nut | typeof MODULE_FASTENER.washer,
+  used: number,
+  size: string,
+): HardwareSummary {
+  const packCount = packsToBuy(used, item.packSize);
+  return {
+    id: item.id,
+    name: `${item.name} M${item.diameter}`,
+    dimensions: `${size}（${item.packSize}個入、使用${used}個）`,
+    usage: item.usage,
+    used,
+    packSize: item.packSize,
+    packCount,
+    packPrice: item.packPrice,
+    subtotal: packCount * item.packPrice,
+    unit: item.unit,
+  };
 }
 
 function summarizeFastener(fastener: (typeof FASTENER)[keyof typeof FASTENER]): FastenerSummary {

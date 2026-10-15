@@ -64,17 +64,68 @@ export const FASTENER = {
 } as const;
 
 /**
- * モジュール同士を留める六角ボルト。
- * ねじは木材に切らず、六角ナットへかける。座金はボルト1本につき両側で2枚。
- * 長さは、重ねた材の厚みに endAllowance（座金2枚、ナット、ナットから出るねじ山）を足して足りるものを短い順に選ぶ。
- * 税込価格は、購入リストへ出すときにビバホームの掲載に合わせる。
+ * モジュール同士を留めるボルト。
+ * ねじは木材に切らず、六角ナットへかける。丸座金はボルト1本につき両側で2枚。
+ * lengths は取り付ける長さで、重ねた材の厚みに endAllowance（座金2枚、ナット、ナットから出るねじ山）を足して足りるものを短い順に選ぶ。
  */
 export const MODULE_BOLT = {
   name: "六角ボルト",
   diameter: 6,
   nutName: "六角ナット",
-  washerName: "平座金",
+  washerName: "丸座金",
   washersPerBolt: 2,
   endAllowance: 12,
   lengths: [50, 200],
+} as const;
+
+/**
+ * モジュール連結で買う金物。価格と入数は、ビバホームオンラインに掲載されていた税込。
+ * 掲載は店舗での取り扱いだった。
+ * acrossWidth は、取り付ける長さの六角ボルトが掲載になかったため、寸切ボルトを切って使う。頭がないので両端をナットで締める。
+ */
+export const MODULE_FASTENER = {
+  acrossThickness: {
+    id: "module-hex",
+    name: "六角ボルト",
+    diameter: MODULE_BOLT.diameter,
+    length: 50,
+    stockLength: 50,
+    packSize: 1,
+    packPrice: 107,
+    nutsPerBolt: 1,
+    unit: "本",
+    usage: "頭側と足側の、接している柱を厚み方向に通す",
+  },
+  acrossWidth: {
+    id: "module-stud",
+    name: "寸切ボルト",
+    diameter: MODULE_BOLT.diameter,
+    length: 200,
+    stockLength: 285,
+    packSize: 1,
+    packPrice: 195,
+    nutsPerBolt: 2,
+    unit: "本",
+    usage: "左右の、接している柱を幅方向に通す。285mmを200mmに切る",
+  },
+  nut: {
+    id: "module-nut",
+    name: "六角ナット",
+    diameter: MODULE_BOLT.diameter,
+    packSize: 4,
+    packPrice: 107,
+    unit: "袋",
+    usage: "モジュールのボルトを締める",
+  },
+  washer: {
+    id: "module-washer",
+    name: "丸座金",
+    diameter: MODULE_BOLT.diameter,
+    outerDiameter: 13,
+    thickness: 1,
+    packSize: 4,
+    packPrice: 74,
+    unit: "袋",
+    usage: "モジュールのボルトの両側に入れる",
+  },
 } as const;

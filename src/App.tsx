@@ -4,7 +4,13 @@ import { FrameView } from "./components/FrameView";
 import { MATTRESS, PRICE, STORAGE_BOX } from "./design/constants";
 import { FRAME_CUT_PLAN } from "./design/cut-plan";
 import { FRAME_HEIGHT, FRAME_MODULES } from "./design/frame";
-import { FASTENER_SUMMARY, PART_SUMMARY, PROJECT_COST, PURCHASE_ITEMS } from "./design/materials";
+import {
+  FASTENER_SUMMARY,
+  MODULE_HARDWARE_SUMMARY,
+  PART_SUMMARY,
+  PROJECT_COST,
+  PURCHASE_ITEMS,
+} from "./design/materials";
 
 const number = new Intl.NumberFormat("ja-JP");
 const yen = new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY" });
@@ -64,7 +70,7 @@ export function App() {
               </p>
               <div className="mt-6 grid grid-cols-3 gap-3 border-t border-stone-800 pt-5">
                 <CostItem label="木材" value={yen.format(PROJECT_COST.lumberCost)} />
-                <CostItem label="ネジ" value={yen.format(PROJECT_COST.fastenerCost)} />
+                <CostItem label="ネジ・ボルト" value={yen.format(PROJECT_COST.fastenerCost)} />
                 <CostItem label="カット代" value={yen.format(PROJECT_COST.cutCost)} />
               </div>
               <p className="mt-5 text-xs leading-5 text-stone-400">{priceNote()}</p>
@@ -80,7 +86,7 @@ export function App() {
               id="purchase-heading"
               eyebrow="Purchase"
               title="購入するもの"
-              description={`12f材を${number.format(FRAME_CUT_PLAN.boardCount)}本購入し、${number.format(FRAME_CUT_PLAN.pieceCount)}点の部材を切り出します。コーススレッドは使用本数を入数で切り上げて袋で数えます。`}
+              description={`12f材を${number.format(FRAME_CUT_PLAN.boardCount)}本購入し、${number.format(FRAME_CUT_PLAN.pieceCount)}点の部材を切り出します。コーススレッド、ボルト、ナット、座金は使用数を入数で切り上げて数えます。`}
             />
             <div className="mt-6 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
               <div className="overflow-x-auto">
@@ -192,8 +198,11 @@ function priceNote(): string {
   const screws = FASTENER_SUMMARY.map(
     (fastener) =>
       `${fastener.name} ${fastener.thread} ${number.format(fastener.diameter)}×${number.format(fastener.length)} を1袋 ${yen.format(fastener.packPrice)}`,
-  ).join("、");
-  return `1x4 12f材を1本 ${yen.format(PRICE.lumber)}、1カット ${yen.format(PRICE.cut)}、${screws}として計算`;
+  );
+  const hardware = MODULE_HARDWARE_SUMMARY.map(
+    (item) => `${item.name} を1${item.unit} ${yen.format(item.packPrice)}`,
+  );
+  return `1x4 12f材を1本 ${yen.format(PRICE.lumber)}、1カット ${yen.format(PRICE.cut)}、${[...screws, ...hardware].join("、")}として計算`;
 }
 
 function CostItem({ label, value }: { label: string; value: string }) {

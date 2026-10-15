@@ -2,7 +2,7 @@ import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useState } from "react";
 import { CanvasTexture, Matrix4, Quaternion, SRGBColorSpace, Vector3 } from "three";
-import { MATTRESS } from "../design/constants";
+import { MATTRESS, MODULE_FASTENER } from "../design/constants";
 import { FRAME_CUT_PLAN, pieceId, pieceLabel } from "../design/cut-plan";
 import { type ExplodeMode, explodedPosition } from "../design/explode";
 import {
@@ -14,7 +14,8 @@ import {
   type StorageSlot,
 } from "../design/frame";
 import { FRAME_JOINTS } from "../design/joints";
-import { FASTENER_SUMMARY } from "../design/materials";
+import { FASTENER_SUMMARY, MODULE_HARDWARE_SUMMARY } from "../design/materials";
+import { MODULE_JOINTS } from "../design/module-joints";
 import { type Axis, type Part, placedSize, type Vec3 } from "../design/types";
 
 const PART_COLORS: Readonly<Record<string, string>> = {
@@ -28,6 +29,8 @@ const BOX_COLOR = "#d6b48c";
 const SCREW_COLORS: Readonly<Record<string, string>> = {
   rail: "#292524",
   slat: "#1e3a8a",
+  [MODULE_FASTENER.acrossThickness.id]: "#0f766e",
+  [MODULE_FASTENER.acrossWidth.id]: "#b45309",
 };
 /** 画面上で位置が分かる太さ。実際の呼び径ではない。 */
 const SCREW_SHAFT_RADIUS = 6;
@@ -92,7 +95,7 @@ export function FrameView() {
               checked={showScrews}
               onChange={(event) => setShowScrews(event.target.checked)}
             />
-            ネジを表示
+            ネジ・ボルトを表示
           </label>
           <label className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-stone-800 shadow-sm ring-1 ring-stone-200">
             <input
@@ -207,9 +210,18 @@ export function FrameView() {
             </span>
           </li>
         ))}
+        {MODULE_HARDWARE_SUMMARY.filter((item) => SCREW_COLORS[item.id]).map((item) => (
+          <li key={item.id} className="flex items-start gap-3">
+            <span
+              className="mt-1 size-3 shrink-0 rounded-full"
+              style={{ backgroundColor: SCREW_COLORS[item.id] }}
+            />
+            <span>{`${item.name}。${item.usage}。使用${number.format(item.used)}本。`}</span>
+          </li>
+        ))}
       </ul>
       <p className="mt-2 text-xs leading-5 text-stone-500">
-        表示しているネジの太さは、位置が分かるように実際より太くしています。長さは購入するネジと同じです。
+        表示しているネジとボルトの太さは、位置が分かるように実際より太くしています。長さは取り付ける長さです。
       </p>
     </section>
   );
@@ -458,22 +470,33 @@ type ScrewMarker = {
   readonly inward: 1 | -1;
   readonly length: number;
   readonly color: string;
+  /** 2 のときは両端にナットを描く。寸切ボルトには頭がない。 */
+  readonly nutCount: 1 | 2;
 };
 
 function Screw({ marker, head }: { marker: ScrewMarker; head: [number, number, number] }) {
   const rotation = screwRotation(marker.axis);
   const shaftCenter = move(head, marker.axis, marker.inward * (marker.length / 2));
-  const headCenter = move(head, marker.axis, -marker.inward * (SCREW_HEAD_THICKNESS / 2));
+  const ends = marker.nutCount === 2 ? [0, marker.length] : [-SCREW_HEAD_THICKNESS / 2];
   return (
     <group>
       <mesh position={shaftCenter} rotation={rotation} castShadow>
         <cylinderGeometry args={[SCREW_SHAFT_RADIUS, SCREW_SHAFT_RADIUS, marker.length, 10]} />
         <meshStandardMaterial color={marker.color} roughness={0.4} metalness={0.55} />
       </mesh>
-      <mesh position={headCenter} rotation={rotation} castShadow>
-        <cylinderGeometry args={[SCREW_HEAD_RADIUS, SCREW_HEAD_RADIUS, SCREW_HEAD_THICKNESS, 12]} />
-        <meshStandardMaterial color={marker.color} roughness={0.4} metalness={0.55} />
-      </mesh>
+      {ends.map((distance) => (
+        <mesh
+          key={distance}
+          position={move(head, marker.axis, marker.inward * distance)}
+          rotation={rotation}
+          castShadow
+        >
+          <cylinderGeometry
+            args={[SCREW_HEAD_RADIUS, SCREW_HEAD_RADIUS, SCREW_HEAD_THICKNESS, 12]}
+          />
+          <meshStandardMaterial color={marker.color} roughness={0.4} metalness={0.55} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -552,20 +575,58 @@ function screwMarkers(): ScrewMarker[] {
     }
     const size = placedSize(part.length, placement);
     const partCenter = toVec(center(origin, placement.position, size));
-    return joint.positions.map((point, index) => ({
-      key: `${joint.id}-${index}`,
-      moduleId: joint.moduleId,
-      head: {
-        x: origin.x + point.x,
-        y: origin.y + point.y,
-        z: origin.z + point.z,
-      },
-      partCenter,
-      axis: joint.face.axis,
-      inward: joint.face.side === "min" ? 1 : -1,
-      length: fastener.length,
-      color: SCREW_COLORS[fastener.id] ?? "#292524",
-    }));
+    return joint.positions.map(
+      (point, index): ScrewMarker => ({
+        key: `${joint.id}-${index}`,
+        moduleId: joint.moduleId,
+        head: {
+          x: origin.x + point.x,
+          y: origin.y + point.y,
+          z: origin.z + point.z,
+        },
+        partCenter,
+        axis: joint.face.axis,
+        inward: joint.face.side === "min" ? 1 : -1,
+        length: fastener.length,
+        color: SCREW_COLORS[fastener.id] ?? "#292524",
+        nutCount: 1,
+      }),
+    );
+  }).concat(moduleBoltMarkers(origins, parts));
+}
+
+const moduleBoltProducts = [MODULE_FASTENER.acrossThickness, MODULE_FASTENER.acrossWidth];
+
+/** ボルトは、接している2本のうち軸の小さい側の柱に付け、分解してもその柱と一緒に動く。 */
+function moduleBoltMarkers(
+  origins: ReadonlyMap<string, Vec3>,
+  parts: ReadonlyMap<string, Part>,
+): ScrewMarker[] {
+  return MODULE_JOINTS.flatMap((joint) => {
+    const end = joint.ends[0];
+    const origin = origins.get(end.moduleId);
+    const part = parts.get(end.partId);
+    const placement = part?.placements[end.placementIndex];
+    const product = moduleBoltProducts.find((item) => item.length === joint.boltLength);
+    if (!origin || !part || !placement || !product) {
+      throw new Error(`モジュール連結 ${joint.id} の部材が見つからない`);
+    }
+    const size = placedSize(part.length, placement);
+    const partCenter = toVec(center(origin, placement.position, size));
+    const entry = origin[joint.axis] + placement.position[joint.axis];
+    return joint.positions.map(
+      (point, index): ScrewMarker => ({
+        key: `${joint.id}-${index}`,
+        moduleId: end.moduleId,
+        head: { ...point, [joint.axis]: entry },
+        partCenter,
+        axis: joint.axis,
+        inward: 1,
+        length: product.length,
+        color: SCREW_COLORS[product.id] ?? "#0f766e",
+        nutCount: product.nutsPerBolt === 2 ? 2 : 1,
+      }),
+    );
   });
 }
 
