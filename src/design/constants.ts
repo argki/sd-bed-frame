@@ -34,3 +34,13 @@ export const PRICE = {
 
 /** のこぎりの刃の厚み。1カットごとに失われる長さ。 */
 export const KERF = 3;
+
+/**
+ * 部材を留めるコーススレッド。
+ * rail は柱の幅を貫いて横桟の木口へ入れる。slat はすのこの厚みを貫いて下の部材の木口へ入れる。
+ * 呼び径と長さは、店頭で入手できる寸法に合わせた仮の値。
+ */
+export const FASTENER = {
+  rail: { id: "rail", name: "コーススレッド", diameter: 4.2, length: 120 },
+  slat: { id: "slat", name: "コーススレッド", diameter: 3.8, length: 45 },
+} as const;
