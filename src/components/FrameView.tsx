@@ -3,6 +3,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useState } from "react";
 import { CanvasTexture, Matrix4, Quaternion, SRGBColorSpace, Vector3 } from "three";
 import { MATTRESS } from "../design/constants";
+import { FRAME_CUT_PLAN, pieceId, pieceLabel } from "../design/cut-plan";
 import { type ExplodeMode, explodedPosition } from "../design/explode";
 import {
   FRAME_HEIGHT,
@@ -43,12 +44,19 @@ type Solid = {
   readonly key: string;
   readonly moduleId: string;
   readonly name: string | null;
+  readonly label: string | null;
   readonly position: [number, number, number];
   readonly size: [number, number, number];
   readonly color: string;
 };
 
 const bedCenterVec: Vec3 = { x: bedCenter[0], y: bedCenter[1], z: bedCenter[2] };
+
+const PIECE_LABELS = new Map(
+  FRAME_CUT_PLAN.boards.flatMap((board) =>
+    board.pieces.map((piece) => [piece.id, pieceLabel(piece)] as const),
+  ),
+);
 
 export function FrameView() {
   const [showBoxes, setShowBoxes] = useState(true);
@@ -159,7 +167,7 @@ export function FrameView() {
             <Board key={solid.key} solid={solid} position={place(solid, centers, amount, mode)} />
           ))}
           {parts.map((solid) => {
-            const texture = solid.name ? nameTextures.get(solid.name) : undefined;
+            const texture = solid.label ? nameTextures.get(solid.label) : undefined;
             if (!texture) {
               return null;
             }
@@ -321,10 +329,10 @@ function BoardName({
 function partNameTextures(parts: readonly Solid[]): Map<string, CanvasTexture> {
   const textures = new Map<string, CanvasTexture>();
   for (const solid of parts) {
-    if (!solid.name || textures.has(solid.name)) {
+    if (!solid.label || textures.has(solid.label)) {
       continue;
     }
-    textures.set(solid.name, createNameTexture(solid.name, solid.color));
+    textures.set(solid.label, createNameTexture(solid.label, solid.color));
   }
   return textures;
 }
@@ -577,10 +585,15 @@ function placementsOf(part: Part, origins: ReadonlyMap<string, Vec3>, color: str
       throw new Error(`モジュール ${part.moduleId} が見つからない`);
     }
     const size = placedSize(part.length, placement);
+    const label = PIECE_LABELS.get(pieceId(part.id, index));
+    if (!label) {
+      throw new Error(`部材 ${part.id} の${index + 1}本目の連番が見つからない`);
+    }
     return {
-      key: `${part.id}-${index}`,
+      key: pieceId(part.id, index),
       moduleId: part.moduleId,
       name: part.name,
+      label,
       position: center(origin, placement.position, size),
       size: [size.x, size.y, size.z],
       color,
@@ -602,6 +615,7 @@ function solidFrom(
     key,
     moduleId: slot.moduleId,
     name: null,
+    label: null,
     position: center(origin, slot.position, slot.size),
     size: [slot.size.x, slot.size.y, slot.size.z],
     color,

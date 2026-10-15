@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LUMBER, PRICE } from "./constants";
-import { createCutPlan, expandParts } from "./cut-plan";
+import { createCutPlan, expandParts, pieceLabel } from "./cut-plan";
 import { FRAME_PARTS } from "./frame";
 import type { Part, PartPlacement } from "./types";
 
@@ -10,10 +10,10 @@ const placement: PartPlacement = {
   widthAxis: "y",
 };
 
-function part(id: string, length: number, count: number): Part {
+function part(id: string, length: number, count: number, name = id): Part {
   return {
     id,
-    name: id,
+    name,
     moduleId: "test",
     length,
     placements: Array.from({ length: count }, () => placement),
@@ -59,6 +59,24 @@ describe("createCutPlan", () => {
       .sort();
 
     expect(actual).toEqual(expected);
+  });
+
+  it("カット寸法図の左から、種類ごとに連番を付ける", () => {
+    const plan = createCutPlan(FRAME_PARTS);
+    const labels = plan.boards.map((board) => board.pieces.map((piece) => pieceLabel(piece)));
+
+    expect(labels[0]).toEqual(["天板のすのこ 1", "天板のすのこ 2", "天板のすのこ 3", "下横桟 1"]);
+    expect(labels[1]).toEqual(["天板のすのこ 4", "天板のすのこ 5", "天板のすのこ 6", "下横桟 2"]);
+
+    const byName = new Map<string, number[]>();
+    for (const piece of plan.boards.flatMap((board) => board.pieces)) {
+      const serials = byName.get(piece.name) ?? [];
+      serials.push(piece.serial);
+      byName.set(piece.name, serials);
+    }
+    for (const serials of byName.values()) {
+      expect(serials).toEqual(serials.map((_, index) => index + 1));
+    }
   });
 
   it("フレームの木取り本数とカット回数を求める", () => {

@@ -1,6 +1,6 @@
 import { KERF, LUMBER } from "../design/constants";
 import { createBoardLayout } from "../design/cut-layout";
-import { FRAME_CUT_PLAN, type StockBoard } from "../design/cut-plan";
+import { FRAME_CUT_PLAN, pieceLabel, type StockBoard } from "../design/cut-plan";
 
 const number = new Intl.NumberFormat("ja-JP");
 
@@ -78,7 +78,7 @@ function BoardDiagram({ board, index }: { board: StockBoard; index: number }) {
           viewBox={`0 0 ${LUMBER.length} 220`}
           role="img"
           aria-label={`12f材${index + 1}の木取り。${board.pieces
-            .map((piece) => `${piece.name}${piece.length}ミリ`)
+            .map((piece) => `${pieceLabel(piece)}${piece.length}ミリ`)
             .join("、")}、端材${layout.offcutLength}ミリ`}
         >
           <defs>
@@ -124,7 +124,7 @@ function BoardDiagram({ board, index }: { board: StockBoard; index: number }) {
                   fontWeight="700"
                   fill="#292524"
                 >
-                  {segment.piece.name}
+                  {pieceLabel(segment.piece)}
                 </text>
                 <text
                   x={center}
