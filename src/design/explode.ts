@@ -3,6 +3,13 @@ import type { Vec3 } from "./types";
 /** 分解しきったとき、モジュールをベッド中心から離す距離。 */
 export const MODULE_EXPLODE_DISTANCE = 320;
 
+/**
+ * 部材分解でモジュールを離す距離。
+ * 部材はモジュール中心から広がるので、境の部材は隣のモジュール側へ戻る。
+ * 戻っても重ならないよう、モジュール分解より長く離す。
+ */
+export const PART_EXPLODE_DISTANCE = 440;
+
 /** 分解しきったとき、部材をモジュール中心から離す倍率。 */
 export const PART_EXPLODE_SCALE = 0.7;
 
@@ -17,10 +24,8 @@ export function explodedPosition(
   mode: ExplodeMode,
 ): Vec3 {
   const t = clamp01(amount);
-  const moduleOffset = scale(
-    horizontalDirection(bedCenter, moduleCenter),
-    MODULE_EXPLODE_DISTANCE * t,
-  );
+  const distance = mode === "part" ? PART_EXPLODE_DISTANCE : MODULE_EXPLODE_DISTANCE;
+  const moduleOffset = scale(horizontalDirection(bedCenter, moduleCenter), distance * t);
   const partOffset =
     mode === "part" ? scale(subtract(partCenter, moduleCenter), PART_EXPLODE_SCALE * t) : zero;
   return add(partCenter, moduleOffset, partOffset);

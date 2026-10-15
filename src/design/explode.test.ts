@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { LUMBER, MATTRESS } from "./constants";
+import { FRAME_CUT_PLAN, pieceLabel } from "./cut-plan";
 import { explodedPosition, MODULE_EXPLODE_DISTANCE } from "./explode";
-import type { Vec3 } from "./types";
+import { FRAME_HEIGHT, FRAME_MODULES, FRAME_PARTS, MODULE_SIZE } from "./frame";
+import { intersects } from "./geometry";
+import { type Box3, placedSize, type Vec3 } from "./types";
 
 const bedCenter: Vec3 = { x: 600, y: 200, z: 975 };
 const moduleCenter: Vec3 = { x: 300, y: 200, z: 400 };
@@ -35,4 +39,88 @@ describe("explodedPosition", () => {
       Math.hypot(partCenter.x - moduleCenter.x, partCenter.z - moduleCenter.z),
     );
   });
+
+  it("部材分解では、境で接していた柱とすのこが重ならない", () => {
+    const boxes = explodedPartBoxes();
+    const pairs = [
+      ["柱 22", "柱 16"],
+      ["柱 23", "柱 17"],
+      ["柱 10", "柱 4"],
+      ["柱 18", "柱 24"],
+      ["天板のすのこ 10", "天板のすのこ 5"],
+      ["天板のすのこ 20", "天板のすのこ 15"],
+    ];
+
+    for (const [leftLabel, rightLabel] of pairs) {
+      const left = boxes.find((box) => box.label === leftLabel);
+      const right = boxes.find((box) => box.label === rightLabel);
+      expect(left, leftLabel).toBeDefined();
+      expect(right, rightLabel).toBeDefined();
+      if (!left || !right) {
+        continue;
+      }
+      expect(intersects(left.box, right.box), `${leftLabel} と ${rightLabel}`).toBe(false);
+      expect(separation(left.box, right.box)).toBeGreaterThanOrEqual(LUMBER.width);
+    }
+  });
 });
+
+function explodedPartBoxes(): { label: string; moduleId: string; box: Box3 }[] {
+  const bedCenter = { x: MATTRESS.width / 2, y: FRAME_HEIGHT / 2, z: MATTRESS.length / 2 };
+  const centers = new Map(
+    FRAME_MODULES.map((module) => [
+      module.id,
+      {
+        x: module.origin.x + MODULE_SIZE.width / 2,
+        y: FRAME_HEIGHT / 2,
+        z: module.origin.z + MODULE_SIZE.length / 2,
+      },
+    ]),
+  );
+  const parts = new Map(FRAME_PARTS.map((part) => [part.id, part]));
+
+  return FRAME_CUT_PLAN.boards.flatMap((board) =>
+    board.pieces.map((piece) => {
+      const part = parts.get(piece.partId);
+      const placementIndex = Number(piece.id.slice(piece.partId.length + 1)) - 1;
+      const placement = part?.placements[placementIndex];
+      const origin = FRAME_MODULES.find((module) => module.id === part?.moduleId)?.origin;
+      const moduleCenter = part ? centers.get(part.moduleId) : undefined;
+      if (!part || !placement || !origin || !moduleCenter) {
+        throw new Error(`${pieceLabel(piece)} の位置が見つからない`);
+      }
+      const size = placedSize(part.length, placement);
+      const center = {
+        x: origin.x + placement.position.x + size.x / 2,
+        y: origin.y + placement.position.y + size.y / 2,
+        z: origin.z + placement.position.z + size.z / 2,
+      };
+      const exploded = explodedPosition(center, moduleCenter, bedCenter, 1, "part");
+      return {
+        label: pieceLabel(piece),
+        moduleId: part.moduleId,
+        box: {
+          min: {
+            x: exploded.x - size.x / 2,
+            y: exploded.y - size.y / 2,
+            z: exploded.z - size.z / 2,
+          },
+          max: {
+            x: exploded.x + size.x / 2,
+            y: exploded.y + size.y / 2,
+            z: exploded.z + size.z / 2,
+          },
+        },
+      };
+    }),
+  );
+}
+
+/** 重なっていなければ、最も狭い軸方向のすき間。重なっていれば負。 */
+function separation(a: Box3, b: Box3): number {
+  return Math.max(
+    Math.max(a.min.x, b.min.x) - Math.min(a.max.x, b.max.x),
+    Math.max(a.min.y, b.min.y) - Math.min(a.max.y, b.max.y),
+    Math.max(a.min.z, b.min.z) - Math.min(a.max.z, b.max.z),
+  );
+}
