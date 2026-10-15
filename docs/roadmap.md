@@ -59,5 +59,8 @@
 - [x] GitHub Pages へのデプロイを追加
   - 完了条件: main への push で GitHub Actions が build、lint、test を行い、GitHub Pages に公開される
 
-- [ ] README を整備
-  - 完了条件: 公開 URL、ローカルでの起動方法、フォーマット方法、設計の前提が書かれている
+- [ ] リポジトリ直下の README を整備
+  - 完了条件: 公開 URL、ローカルでの起動方法、フォーマット方法、設計の前提が書かれている。文章は yomiyasu スキルで推敲している
+
+- [ ] 各ディレクトリに README.md を置く
+  - 完了条件: ソースや設定を置くディレクトリ（`.cursor`、`.cursor/commands`、`.cursor/rules`、`.github`、`.github/workflows`、`docs`、`src`、`src/components`、`src/design`）に README.md があり、そのディレクトリの概要が書かれている。文章は yomiyasu スキルで推敲している
