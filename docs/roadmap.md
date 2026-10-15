@@ -56,7 +56,7 @@
 - [x] モジュールの連結を3Dと購入リストに表示する
   - 完了条件: 3Dで、どのモジュールどうしをどこで留めるかが分かる。購入するものが増える場合は、種類、数、費用がページに出る。ボルト、ナット、座金の税込価格は、ビバホームの掲載に合わせた値を `src/design/` に置く。数値は `src/design/` から読む
 
-- [ ] GitHub Pages へのデプロイを追加
+- [x] GitHub Pages へのデプロイを追加
   - 完了条件: main への push で GitHub Actions が build、lint、test を行い、GitHub Pages に公開される
 
 - [ ] README を整備
