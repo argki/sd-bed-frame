@@ -11,7 +11,9 @@ import {
   STORAGE_SLOTS,
   type StorageSlot,
 } from "../design/frame";
-import { type Part, placedSize, type Vec3 } from "../design/types";
+import { FRAME_JOINTS } from "../design/joints";
+import { FASTENER_SUMMARY } from "../design/materials";
+import { type Axis, type Part, placedSize, type Vec3 } from "../design/types";
 
 const PART_COLORS: Readonly<Record<string, string>> = {
   天板のすのこ: "#e8c27a",
@@ -21,6 +23,14 @@ const PART_COLORS: Readonly<Record<string, string>> = {
 };
 
 const BOX_COLOR = "#d6b48c";
+const SCREW_COLORS: Readonly<Record<string, string>> = {
+  rail: "#292524",
+  slat: "#1e3a8a",
+};
+/** 画面上で位置が分かる太さ。実際の呼び径ではない。 */
+const SCREW_SHAFT_RADIUS = 6;
+const SCREW_HEAD_RADIUS = 12;
+const SCREW_HEAD_THICKNESS = 5;
 
 const bedCenter: [number, number, number] = [
   MATTRESS.width / 2,
@@ -40,10 +50,12 @@ const bedCenterVec: Vec3 = { x: bedCenter[0], y: bedCenter[1], z: bedCenter[2] }
 
 export function FrameView() {
   const [showBoxes, setShowBoxes] = useState(true);
+  const [showScrews, setShowScrews] = useState(true);
   const [amount, setAmount] = useState(0);
   const [mode, setMode] = useState<ExplodeMode>("module");
   const parts = useMemo(() => partSolids(), []);
   const boxes = useMemo(() => boxSolids(), []);
+  const screws = useMemo(() => screwMarkers(), []);
   const centers = useMemo(() => moduleCenters(), []);
 
   return (
@@ -61,15 +73,26 @@ export function FrameView() {
             ドラッグで回転、スクロールで拡大縮小できます。スライダーで分解の度合いを変えます。
           </p>
         </div>
-        <label className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-stone-800 shadow-sm ring-1 ring-stone-200">
-          <input
-            type="checkbox"
-            className="accent-amber-700"
-            checked={showBoxes}
-            onChange={(event) => setShowBoxes(event.target.checked)}
-          />
-          ダンボール箱を表示
-        </label>
+        <div className="flex flex-wrap gap-2">
+          <label className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-stone-800 shadow-sm ring-1 ring-stone-200">
+            <input
+              type="checkbox"
+              className="accent-amber-700"
+              checked={showScrews}
+              onChange={(event) => setShowScrews(event.target.checked)}
+            />
+            ネジを表示
+          </label>
+          <label className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-stone-800 shadow-sm ring-1 ring-stone-200">
+            <input
+              type="checkbox"
+              className="accent-amber-700"
+              checked={showBoxes}
+              onChange={(event) => setShowBoxes(event.target.checked)}
+            />
+            ダンボール箱を表示
+          </label>
+        </div>
       </div>
 
       <div className="mt-5 grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:grid-cols-[1fr_auto] sm:items-center">
@@ -136,12 +159,38 @@ export function FrameView() {
             boxes.map((solid) => (
               <Board key={solid.key} solid={solid} position={place(solid, centers, amount, mode)} />
             ))}
+          {showScrews &&
+            screws.map((marker) => (
+              <Screw
+                key={marker.key}
+                marker={marker}
+                head={placePoint(marker, centers, amount, mode)}
+              />
+            ))}
           <OrbitControls target={bedCenter} minDistance={700} maxDistance={6000} />
         </Canvas>
       </div>
+      <ul className="mt-4 grid gap-2 text-sm text-stone-700 sm:grid-cols-2">
+        {FASTENER_SUMMARY.map((fastener) => (
+          <li key={fastener.id} className="flex items-start gap-3">
+            <span
+              className="mt-1 size-3 shrink-0 rounded-full"
+              style={{ backgroundColor: SCREW_COLORS[fastener.id] ?? "#292524" }}
+            />
+            <span>
+              {`${fastener.name} ${fastener.thread} ${number.format(fastener.diameter)}×${number.format(fastener.length)}。${fastener.usage}。1か所${number.format(fastener.screwsPerJoint)}本、使用${number.format(fastener.used)}本。`}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs leading-5 text-stone-500">
+        表示しているネジの太さは、位置が分かるように実際より太くしています。長さは購入するネジと同じです。
+      </p>
     </section>
   );
 }
+
+const number = new Intl.NumberFormat("ja-JP");
 
 function FrameCamera() {
   const camera = useThree((state) => state.camera);
@@ -201,6 +250,79 @@ function place(
   return [position.x, position.y, position.z];
 }
 
+type ScrewMarker = {
+  readonly key: string;
+  readonly moduleId: string;
+  readonly head: Vec3;
+  readonly partCenter: Vec3;
+  readonly axis: Axis;
+  /** ネジが進む向き。1 はその軸の正方向。 */
+  readonly inward: 1 | -1;
+  readonly length: number;
+  readonly color: string;
+};
+
+function Screw({ marker, head }: { marker: ScrewMarker; head: [number, number, number] }) {
+  const rotation = screwRotation(marker.axis);
+  const shaftCenter = move(head, marker.axis, marker.inward * (marker.length / 2));
+  const headCenter = move(head, marker.axis, -marker.inward * (SCREW_HEAD_THICKNESS / 2));
+  return (
+    <group>
+      <mesh position={shaftCenter} rotation={rotation} castShadow>
+        <cylinderGeometry args={[SCREW_SHAFT_RADIUS, SCREW_SHAFT_RADIUS, marker.length, 10]} />
+        <meshStandardMaterial color={marker.color} roughness={0.4} metalness={0.55} />
+      </mesh>
+      <mesh position={headCenter} rotation={rotation} castShadow>
+        <cylinderGeometry args={[SCREW_HEAD_RADIUS, SCREW_HEAD_RADIUS, SCREW_HEAD_THICKNESS, 12]} />
+        <meshStandardMaterial color={marker.color} roughness={0.4} metalness={0.55} />
+      </mesh>
+    </group>
+  );
+}
+
+function screwRotation(axis: Axis): [number, number, number] {
+  if (axis === "x") {
+    return [0, 0, Math.PI / 2];
+  }
+  if (axis === "z") {
+    return [Math.PI / 2, 0, 0];
+  }
+  return [0, 0, 0];
+}
+
+function move(
+  point: [number, number, number],
+  axis: Axis,
+  distance: number,
+): [number, number, number] {
+  const [x, y, z] = point;
+  if (axis === "x") {
+    return [x + distance, y, z];
+  }
+  if (axis === "y") {
+    return [x, y + distance, z];
+  }
+  return [x, y, z + distance];
+}
+
+function placePoint(
+  marker: ScrewMarker,
+  centers: ReadonlyMap<string, Vec3>,
+  amount: number,
+  mode: ExplodeMode,
+): [number, number, number] {
+  const moduleCenter = centers.get(marker.moduleId);
+  if (!moduleCenter) {
+    throw new Error(`モジュール ${marker.moduleId} の中心が見つからない`);
+  }
+  const exploded = explodedPosition(marker.partCenter, moduleCenter, bedCenterVec, amount, mode);
+  return [
+    marker.head.x + exploded.x - marker.partCenter.x,
+    marker.head.y + exploded.y - marker.partCenter.y,
+    marker.head.z + exploded.z - marker.partCenter.z,
+  ];
+}
+
 function Board({ solid, position }: { solid: Solid; position: [number, number, number] }) {
   return (
     <mesh position={position} castShadow receiveShadow>
@@ -215,6 +337,42 @@ function partSolids(): Solid[] {
   return FRAME_PARTS.flatMap((part) =>
     placementsOf(part, origins, PART_COLORS[part.name] ?? "#e8c27a"),
   );
+}
+
+function screwMarkers(): ScrewMarker[] {
+  const origins = new Map(FRAME_MODULES.map((module) => [module.id, module.origin]));
+  const parts = new Map(FRAME_PARTS.map((part) => [part.id, part]));
+  const fasteners = new Map(FASTENER_SUMMARY.map((fastener) => [fastener.id, fastener]));
+
+  return FRAME_JOINTS.flatMap((joint) => {
+    const origin = origins.get(joint.moduleId);
+    const part = parts.get(joint.fromPartId);
+    const placement = part?.placements[joint.fromPlacementIndex];
+    const fastener = fasteners.get(joint.fastenerId);
+    if (!origin || !part || !placement || !fastener) {
+      throw new Error(`接合 ${joint.id} の部材が見つからない`);
+    }
+    const size = placedSize(part.length, placement);
+    const partCenter = toVec(center(origin, placement.position, size));
+    return joint.positions.map((point, index) => ({
+      key: `${joint.id}-${index}`,
+      moduleId: joint.moduleId,
+      head: {
+        x: origin.x + point.x,
+        y: origin.y + point.y,
+        z: origin.z + point.z,
+      },
+      partCenter,
+      axis: joint.face.axis,
+      inward: joint.face.side === "min" ? 1 : -1,
+      length: fastener.length,
+      color: SCREW_COLORS[fastener.id] ?? "#292524",
+    }));
+  });
+}
+
+function toVec(point: [number, number, number]): Vec3 {
+  return { x: point[0], y: point[1], z: point[2] };
 }
 
 function boxSolids(): Solid[] {

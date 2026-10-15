@@ -36,11 +36,29 @@ export const PRICE = {
 export const KERF = 3;
 
 /**
- * 部材を留めるコーススレッド。
+ * 部材を留めるコーススレッド。価格はビバホームオンラインの税込。
  * rail は柱の幅を貫いて横桟の木口へ入れる。slat はすのこの厚みを貫いて下の部材の木口へ入れる。
- * 呼び径と長さは、店頭で入手できる寸法に合わせた仮の値。
+ * 呼び径、長さ、入数は、掲載されていた商品に合わせている。
  */
 export const FASTENER = {
-  rail: { id: "rail", name: "コーススレッド", diameter: 4.2, length: 120 },
-  slat: { id: "slat", name: "コーススレッド", diameter: 3.8, length: 45 },
+  rail: {
+    id: "rail",
+    name: "コーススレッド",
+    thread: "半ねじ",
+    diameter: 5.1,
+    length: 120,
+    packSize: 15,
+    packPrice: 327,
+    usage: "柱の外側の面から横桟の木口へ打つ",
+  },
+  slat: {
+    id: "slat",
+    name: "コーススレッド",
+    thread: "全ねじ",
+    diameter: 3.8,
+    length: 45,
+    packSize: 70,
+    packPrice: 327,
+    usage: "すのこの上面から、接している柱と上横桟の木口へ打つ",
+  },
 } as const;

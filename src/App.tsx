@@ -4,7 +4,7 @@ import { FrameView } from "./components/FrameView";
 import { MATTRESS, PRICE, STORAGE_BOX } from "./design/constants";
 import { FRAME_CUT_PLAN } from "./design/cut-plan";
 import { FRAME_HEIGHT, FRAME_MODULES } from "./design/frame";
-import { PART_SUMMARY, PURCHASE_ITEMS } from "./design/materials";
+import { FASTENER_SUMMARY, PART_SUMMARY, PROJECT_COST, PURCHASE_ITEMS } from "./design/materials";
 
 const number = new Intl.NumberFormat("ja-JP");
 const yen = new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY" });
@@ -60,16 +60,14 @@ export function App() {
             <div className="rounded-2xl bg-stone-950 p-6 text-stone-50 shadow-xl shadow-stone-300/60">
               <p className="text-sm font-medium text-stone-400">概算合計</p>
               <p className="mt-2 text-4xl font-black tracking-tight text-amber-400">
-                {yen.format(FRAME_CUT_PLAN.cost.totalCost)}
+                {yen.format(PROJECT_COST.totalCost)}
               </p>
-              <div className="mt-6 grid grid-cols-2 gap-3 border-t border-stone-800 pt-5">
-                <CostItem label="材料費" value={yen.format(FRAME_CUT_PLAN.cost.materialCost)} />
-                <CostItem label="カット代" value={yen.format(FRAME_CUT_PLAN.cost.cutCost)} />
+              <div className="mt-6 grid grid-cols-3 gap-3 border-t border-stone-800 pt-5">
+                <CostItem label="木材" value={yen.format(PROJECT_COST.lumberCost)} />
+                <CostItem label="ネジ" value={yen.format(PROJECT_COST.fastenerCost)} />
+                <CostItem label="カット代" value={yen.format(PROJECT_COST.cutCost)} />
               </div>
-              <p className="mt-5 text-xs leading-5 text-stone-400">
-                1x4 12f材を1本 {yen.format(PRICE.lumber)}、1カット {yen.format(PRICE.cut)}
-                として計算
-              </p>
+              <p className="mt-5 text-xs leading-5 text-stone-400">{priceNote()}</p>
             </div>
           </div>
         </section>
@@ -81,8 +79,8 @@ export function App() {
             <SectionHeading
               id="purchase-heading"
               eyebrow="Purchase"
-              title="購入する木材"
-              description={`12f材を${number.format(FRAME_CUT_PLAN.boardCount)}本購入し、${number.format(FRAME_CUT_PLAN.pieceCount)}点の部材を切り出します。`}
+              title="購入するもの"
+              description={`12f材を${number.format(FRAME_CUT_PLAN.boardCount)}本購入し、${number.format(FRAME_CUT_PLAN.pieceCount)}点の部材を切り出します。コーススレッドは使用本数を入数で切り上げて袋で数えます。`}
             />
             <div className="mt-6 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
               <div className="overflow-x-auto">
@@ -91,7 +89,7 @@ export function App() {
                     <tr>
                       <TableHead>材料</TableHead>
                       <TableHead>寸法</TableHead>
-                      <TableHead align="right">本数</TableHead>
+                      <TableHead align="right">数量</TableHead>
                       <TableHead align="right">単価</TableHead>
                       <TableHead align="right">小計</TableHead>
                     </tr>
@@ -101,7 +99,10 @@ export function App() {
                       <tr key={item.name} className="border-t border-stone-200">
                         <TableCell strong>{item.name}</TableCell>
                         <TableCell>{item.dimensions}</TableCell>
-                        <TableCell align="right">{number.format(item.quantity)}本</TableCell>
+                        <TableCell align="right">
+                          {number.format(item.quantity)}
+                          {item.unit}
+                        </TableCell>
                         <TableCell align="right">{yen.format(item.unitPrice)}</TableCell>
                         <TableCell align="right" strong>
                           {yen.format(item.subtotal)}
@@ -152,22 +153,23 @@ export function App() {
               id="cost-heading"
               eyebrow="Breakdown"
               title="費用の内訳"
-              description="ビスや塗料などの副資材は含みません。"
+              description="塗料などの副資材は含みません。"
             />
             <dl className="mt-7 divide-y divide-stone-200">
-              <BreakdownRow
-                label={`1x4 12f材 ${number.format(FRAME_CUT_PLAN.boardCount)}本`}
-                value={FRAME_CUT_PLAN.cost.materialCost}
-              />
+              {PURCHASE_ITEMS.map((item) => (
+                <BreakdownRow
+                  key={item.name}
+                  label={`${item.name} ${number.format(item.quantity)}${item.unit}`}
+                  value={item.subtotal}
+                />
+              ))}
               <BreakdownRow
                 label={`カット ${number.format(FRAME_CUT_PLAN.cutCount)}回`}
-                value={FRAME_CUT_PLAN.cost.cutCost}
+                value={PROJECT_COST.cutCost}
               />
               <div className="flex items-center justify-between gap-4 pt-5 text-lg font-black">
                 <dt>合計</dt>
-                <dd className="text-2xl text-amber-700">
-                  {yen.format(FRAME_CUT_PLAN.cost.totalCost)}
-                </dd>
+                <dd className="text-2xl text-amber-700">{yen.format(PROJECT_COST.totalCost)}</dd>
               </div>
             </dl>
           </section>
@@ -184,6 +186,14 @@ function Spec({ term, value }: { term: string; value: string }) {
       <dd className="mt-1 font-bold text-stone-900">{value}</dd>
     </div>
   );
+}
+
+function priceNote(): string {
+  const screws = FASTENER_SUMMARY.map(
+    (fastener) =>
+      `${fastener.name} ${fastener.thread} ${number.format(fastener.diameter)}×${number.format(fastener.length)} を1袋 ${yen.format(fastener.packPrice)}`,
+  ).join("、");
+  return `1x4 12f材を1本 ${yen.format(PRICE.lumber)}、1カット ${yen.format(PRICE.cut)}、${screws}として計算`;
 }
 
 function CostItem({ label, value }: { label: string; value: string }) {
