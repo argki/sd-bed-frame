@@ -76,8 +76,42 @@ describe.each(FRAME_MODULES)("モジュール $name", (module) => {
   const parts = partBoxes(module);
   const slots = moduleStorageSlots(module).map((s) => boxFrom(s.position, s.size));
 
-  it("部材を14本で構成する", () => {
-    expect(parts).toHaveLength(14);
+  it("部材を16本で構成する", () => {
+    expect(parts).toHaveLength(16);
+  });
+
+  it("中央の上横桟の両端が柱に接する", () => {
+    const grouped = moduleParts(module);
+    const upper = grouped.find((part) => part.name === "上横桟");
+    const posts = grouped.find((part) => part.name === "柱");
+    expect(upper).toBeDefined();
+    expect(posts).toBeDefined();
+    if (!upper || !posts) {
+      return;
+    }
+
+    const railBoxes = upper.placements.map((placement) => placementBox(upper.length, placement));
+    const middle = railBoxes.find((rail) => {
+      const before = railBoxes.some((other) => other.max.z <= rail.min.z);
+      const after = railBoxes.some((other) => other.min.z >= rail.max.z);
+      return before && after;
+    });
+    expect(middle).toBeDefined();
+    if (!middle) {
+      return;
+    }
+
+    const postBoxes = posts.placements.map((placement) => placementBox(posts.length, placement));
+    const touches = (side: "min" | "max") =>
+      postBoxes.filter((post) => {
+        const meets = side === "min" ? post.max.x === middle.min.x : post.min.x === middle.max.x;
+        const overlapY = Math.min(post.max.y, middle.max.y) - Math.max(post.min.y, middle.min.y);
+        const overlapZ = Math.min(post.max.z, middle.max.z) - Math.max(post.min.z, middle.min.z);
+        return meets && overlapY > 0 && overlapZ > 0;
+      });
+
+    expect(touches("min")).toHaveLength(1);
+    expect(touches("max")).toHaveLength(1);
   });
 
   it("部材がすべてモジュールの外寸に収まる", () => {

@@ -88,7 +88,7 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
   const posts = parts.find((part) => part.name === "柱");
   const slats = parts.find((part) => part.name === "天板のすのこ");
 
-  it("柱に接する横桟の端だけを、柱の外側の面から留める", () => {
+  it("上横桟3本と下横桟を、柱の外側の面から留める", () => {
     expect(upper).toBeDefined();
     expect(lower).toBeDefined();
     expect(posts).toBeDefined();
@@ -99,16 +99,8 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
     const upperJoints = joints.filter(
       (joint) => joint.intoPartId === upper.id && joint.fastenerId === FASTENER.rail.id,
     );
-    const connected = upper.placements
-      .map((_, index) => upperJoints.filter((joint) => joint.intoPlacementIndex === index))
-      .filter((list) => list.length > 0);
-    const unconnected = upper.placements.filter(
-      (_, index) => !upperJoints.some((joint) => joint.intoPlacementIndex === index),
-    );
-    expect(connected).toHaveLength(2);
-    expect(unconnected).toHaveLength(1);
-    for (const list of connected) {
-      expect(list).toHaveLength(2);
+    for (let index = 0; index < upper.placements.length; index++) {
+      expect(upperJoints.filter((joint) => joint.intoPlacementIndex === index)).toHaveLength(2);
     }
 
     const lowerJoints = joints.filter(
@@ -131,16 +123,16 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
       return;
     }
     const slatJoints = joints.filter((joint) => joint.fromPartId === slats.id);
-    expect(slatJoints).toHaveLength(2 * 2 + (SLAT_COUNT - 2) * 3);
+    expect(slatJoints).toHaveLength(2 * 3 + (SLAT_COUNT - 2) * 3);
     for (const joint of slatJoints) {
       expect(joint.fastenerId).toBe(FASTENER.slat.id);
       expect(joint.face).toEqual({ axis: "y", side: "max" });
       expect(joint.positions).toHaveLength(SCREWS_PER_SLAT_SUPPORT);
       expect(joint.intoPartId === posts?.id || joint.intoPartId === upper?.id).toBe(true);
     }
-    expect(slatJoints.filter((joint) => joint.fromPlacementIndex === 0)).toHaveLength(2);
+    expect(slatJoints.filter((joint) => joint.fromPlacementIndex === 0)).toHaveLength(3);
     expect(slatJoints.filter((joint) => joint.fromPlacementIndex === SLAT_COUNT - 1)).toHaveLength(
-      2,
+      3,
     );
   });
 

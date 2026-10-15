@@ -92,7 +92,7 @@ export function moduleParts(module: FrameModule): Part[] {
       moduleId: module.id,
       length: POST_HEIGHT,
       placements: [0, MODULE_SIZE.width - B].flatMap((x) =>
-        [0, MODULE_SIZE.length - T].map(
+        [0, DIVIDER_Z, MODULE_SIZE.length - T].map(
           (z): PartPlacement => ({
             position: { x, y: 0, z },
             lengthAxis: "y",
