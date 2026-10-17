@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FASTENER, MODULE_BOLT, MODULE_FASTENER } from "./constants";
+import { FASTENER, MODULE_BOLT, MODULE_FASTENER, PRICE } from "./constants";
+import { FRAME_CUT_PLAN } from "./cut-plan";
 import { FRAME_JOINTS } from "./joints";
 import {
   FASTENER_SUMMARY,
@@ -48,6 +49,22 @@ describe("表示用の部材集計", () => {
     for (const item of PURCHASE_ITEMS) {
       expect(item.subtotal).toBe(item.unitPrice * item.quantity);
     }
+  });
+
+  it("1x4 と 2x4 を別の本数と単価で買う", () => {
+    expect(FRAME_CUT_PLAN.stocks.map((stock) => stock.id)).toEqual(["1x4", "2x4"]);
+    for (const stock of FRAME_CUT_PLAN.stocks) {
+      const item = PURCHASE_ITEMS.find((row) => row.name === stock.name);
+      expect(item?.quantity).toBe(stock.boardCount);
+      expect(item?.unitPrice).toBe(stock.unitPrice);
+      expect(item?.subtotal).toBe(stock.boardCount * stock.unitPrice);
+    }
+    expect(PURCHASE_ITEMS.find((item) => item.name === "1x4材 12f")?.unitPrice).toBe(PRICE.lumber);
+    expect(PURCHASE_ITEMS.find((item) => item.name === "2x4材 12f")?.unitPrice).toBe(
+      PRICE.lumber2x4,
+    );
+    expect(PROJECT_COST.lumberCost).toBe(FRAME_CUT_PLAN.cost.materialCost);
+    expect(PROJECT_COST.cutCost).toBe(FRAME_CUT_PLAN.cost.cutCost);
   });
 
   it("コーススレッドは使用本数を入数で切り上げて買う", () => {

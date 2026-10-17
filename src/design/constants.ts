@@ -43,6 +43,26 @@ export const PRICE = {
   cut: 50,
 } as const;
 
+/** 木取りと購入で分ける材種。断面が違う材は、同じ1本から切り出さない。 */
+export const LUMBER_STOCKS = [
+  {
+    id: "1x4",
+    name: "1x4材 12f",
+    thickness: LUMBER.thickness,
+    width: LUMBER.width,
+    length: LUMBER.length,
+    unitPrice: PRICE.lumber,
+  },
+  {
+    id: "2x4",
+    name: "2x4材 12f",
+    thickness: LUMBER_2X4.thickness,
+    width: LUMBER_2X4.width,
+    length: LUMBER_2X4.length,
+    unitPrice: PRICE.lumber2x4,
+  },
+] as const;
+
 /** のこぎりの刃の厚み。1カットごとに失われる長さ。 */
 export const KERF = 3;
 

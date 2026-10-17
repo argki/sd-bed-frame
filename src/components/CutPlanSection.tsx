@@ -1,4 +1,4 @@
-import { KERF, LUMBER } from "../design/constants";
+import { KERF } from "../design/constants";
 import { createBoardLayout } from "../design/cut-layout";
 import { FRAME_CUT_PLAN, pieceLabel, type StockBoard } from "../design/cut-plan";
 
@@ -39,14 +39,17 @@ export function CutPlanSection() {
       </div>
 
       <div className="mt-6 space-y-4">
-        {FRAME_CUT_PLAN.boards.map((board, index) => (
-          <BoardDiagram key={board.id} board={board} index={index} />
-        ))}
+        {FRAME_CUT_PLAN.stocks.flatMap((stock) =>
+          stock.boards.map((board, index) => (
+            <BoardDiagram key={board.id} board={board} index={index} />
+          )),
+        )}
       </div>
 
       <p className="mt-4 text-xs leading-5 text-stone-500">
-        材の長さは {number.format(LUMBER.length)} mm、カットロスは1か所 {number.format(KERF)}{" "}
-        mmとして計算しています。
+        {`${FRAME_CUT_PLAN.stocks
+          .map((stock) => `${stock.name}の長さは ${number.format(stock.stockLength)} mm`)
+          .join("、")}、カットロスは1か所 ${number.format(KERF)} mmとして計算しています。`}
       </p>
     </section>
   );
@@ -59,7 +62,9 @@ function BoardDiagram({ board, index }: { board: StockBoard; index: number }) {
   return (
     <article className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 px-4 py-3">
-        <h3 className="font-bold text-stone-900">12f材 {number.format(index + 1)}</h3>
+        <h3 className="font-bold text-stone-900">
+          {board.stockName} {number.format(index + 1)}
+        </h3>
         <div className="flex gap-2 text-xs">
           <span className="rounded-full bg-stone-100 px-3 py-1 font-semibold text-stone-600">
             {number.format(board.cutCount)}カット
@@ -73,9 +78,9 @@ function BoardDiagram({ board, index }: { board: StockBoard; index: number }) {
       <div className="overflow-x-auto px-4 py-4">
         <svg
           className="min-w-3xl"
-          viewBox={`0 0 ${LUMBER.length} 220`}
+          viewBox={`0 0 ${board.stockLength} 220`}
           role="img"
-          aria-label={`12f材${index + 1}の木取り。${board.pieces
+          aria-label={`${board.stockName}${index + 1}の木取り。${board.pieces
             .map((piece) => `${pieceLabel(piece)}${piece.length}ミリ`)
             .join("、")}、端材${layout.offcutLength}ミリ`}
         >
@@ -95,7 +100,7 @@ function BoardDiagram({ board, index }: { board: StockBoard; index: number }) {
           <rect
             x="1"
             y="1"
-            width={LUMBER.length - 2}
+            width={board.stockLength - 2}
             height="178"
             rx="18"
             fill="#fafaf9"
@@ -174,8 +179,8 @@ function BoardDiagram({ board, index }: { board: StockBoard; index: number }) {
           <text x="0" y="215" fontSize="34" fill="#78716c">
             0
           </text>
-          <text x={LUMBER.length} y="215" textAnchor="end" fontSize="34" fill="#78716c">
-            {number.format(LUMBER.length)} mm
+          <text x={board.stockLength} y="215" textAnchor="end" fontSize="34" fill="#78716c">
+            {number.format(board.stockLength)} mm
           </text>
         </svg>
       </div>

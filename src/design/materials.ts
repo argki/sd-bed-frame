@@ -1,4 +1,4 @@
-import { FASTENER, LUMBER, MODULE_BOLT, MODULE_FASTENER, PRICE } from "./constants";
+import { FASTENER, MODULE_BOLT, MODULE_FASTENER } from "./constants";
 import { FRAME_CUT_PLAN } from "./cut-plan";
 import { FRAME_PARTS } from "./frame";
 import { FRAME_JOINTS } from "./joints";
@@ -58,14 +58,14 @@ const moduleBolts = [MODULE_FASTENER.acrossThickness, MODULE_FASTENER.acrossWidt
 
 export const MODULE_HARDWARE_SUMMARY: readonly HardwareSummary[] = summarizeModuleHardware();
 
-const lumberItem: PurchaseItem = {
-  name: "1x4材 12f",
-  dimensions: `${LUMBER.thickness} × ${LUMBER.width} × ${LUMBER.length} mm`,
-  quantity: FRAME_CUT_PLAN.boardCount,
+const lumberItems: readonly PurchaseItem[] = FRAME_CUT_PLAN.stocks.map((stock) => ({
+  name: stock.name,
+  dimensions: `${stock.thickness} × ${stock.width} × ${stock.stockLength} mm`,
+  quantity: stock.boardCount,
   unit: "本",
-  unitPrice: PRICE.lumber,
-  subtotal: FRAME_CUT_PLAN.cost.materialCost,
-};
+  unitPrice: stock.unitPrice,
+  subtotal: stock.materialCost,
+}));
 
 const fastenerItems: readonly PurchaseItem[] = FASTENER_SUMMARY.map((fastener) => ({
   name: `${fastener.name} ${fastener.thread}`,
@@ -86,7 +86,7 @@ const hardwareItems: readonly PurchaseItem[] = MODULE_HARDWARE_SUMMARY.map((item
 }));
 
 export const PURCHASE_ITEMS: readonly PurchaseItem[] = [
-  lumberItem,
+  ...lumberItems,
   ...fastenerItems,
   ...hardwareItems,
 ];

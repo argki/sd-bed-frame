@@ -1,4 +1,4 @@
-import { KERF, LUMBER } from "./constants";
+import { KERF } from "./constants";
 import type { CutPiece, StockBoard } from "./cut-plan";
 
 export type CutSegment = {
@@ -16,7 +16,7 @@ export type BoardLayout = {
 
 export function createBoardLayout(
   board: StockBoard,
-  stockLength: number = LUMBER.length,
+  stockLength: number = board.stockLength,
   kerf: number = KERF,
 ): BoardLayout {
   let cursor = 0;

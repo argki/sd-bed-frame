@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LUMBER, PRICE } from "./constants";
+import { LUMBER, LUMBER_2X4, PRICE } from "./constants";
 import { createCutPlan, expandParts, pieceLabel } from "./cut-plan";
 import { FRAME_PARTS } from "./frame";
 import type { Part, PartPlacement } from "./types";
@@ -45,8 +45,8 @@ describe("createCutPlan", () => {
     const plan = createCutPlan(FRAME_PARTS);
 
     for (const board of plan.boards) {
-      expect(board.usedLength).toBeLessThanOrEqual(LUMBER.length);
-      expect(board.remainingLength).toBe(LUMBER.length - board.usedLength);
+      expect(board.usedLength).toBeLessThanOrEqual(board.stockLength);
+      expect(board.remainingLength).toBe(board.stockLength - board.usedLength);
     }
   });
 
@@ -65,8 +65,10 @@ describe("createCutPlan", () => {
     const plan = createCutPlan(FRAME_PARTS);
     const labels = plan.boards.map((board) => board.pieces.map((piece) => pieceLabel(piece)));
 
-    expect(labels[0]).toEqual(["上枠 1", "上枠 2", "天板のすのこ 1", "上枠 3"]);
-    expect(labels[1]).toEqual(["天板のすのこ 2", "天板のすのこ 3", "天板のすのこ 4", "上枠 4"]);
+    expect(labels[0]).toEqual(["天板のすのこ 1", "天板のすのこ 2", "天板のすのこ 3"]);
+    expect(
+      plan.stocks.find((stock) => stock.id === "2x4")?.boards[0]?.pieces.map(pieceLabel),
+    ).toEqual(["上枠 1", "上枠 2", "上枠 3", "上枠 4"]);
 
     const byName = new Map<string, number[]>();
     for (const piece of plan.boards.flatMap((board) => board.pieces)) {
@@ -82,19 +84,51 @@ describe("createCutPlan", () => {
   it("フレームの木取り本数とカット回数を求める", () => {
     const plan = createCutPlan(FRAME_PARTS);
 
-    expect(plan.boardCount).toBe(10);
+    expect(plan.stocks.map((stock) => [stock.id, stock.boardCount, stock.cutCount])).toEqual([
+      ["1x4", 7, 20],
+      ["2x4", 5, 20],
+    ]);
+    expect(plan.boardCount).toBe(12);
     expect(plan.pieceCount).toBe(40);
     expect(plan.cutCount).toBe(40);
   });
 
-  it("材料費、カット代、合計を求める", () => {
+  it("すのこは 1x4、上枠は 2x4 の材料費で求める", () => {
     const plan = createCutPlan(FRAME_PARTS);
+    const slatStock = plan.stocks.find((stock) => stock.id === "1x4");
+    const railStock = plan.stocks.find((stock) => stock.id === "2x4");
 
+    expect(
+      slatStock?.boards.every((board) =>
+        board.pieces.every((piece) => piece.name === "天板のすのこ"),
+      ),
+    ).toBe(true);
+    expect(
+      railStock?.boards.every((board) => board.pieces.every((piece) => piece.name === "上枠")),
+    ).toBe(true);
     expect(plan.cost).toEqual({
-      materialCost: plan.boardCount * PRICE.lumber,
+      materialCost: 7 * PRICE.lumber + 5 * PRICE.lumber2x4,
       cutCost: plan.cutCount * PRICE.cut,
-      totalCost: plan.boardCount * PRICE.lumber + plan.cutCount * PRICE.cut,
+      totalCost: 7 * PRICE.lumber + 5 * PRICE.lumber2x4 + plan.cutCount * PRICE.cut,
     });
+  });
+
+  it("断面が違う部材を、長さが足りても同じ材に入れない", () => {
+    const plan = createCutPlan(
+      [part("slat", 1000, 1), { ...part("rail", 1000, 1), section: LUMBER_2X4 }],
+      LUMBER.length,
+      3,
+    );
+
+    expect(plan.boardCount).toBe(2);
+    expect(plan.stocks.map((stock) => stock.id)).toEqual(["1x4", "2x4"]);
+    expect(plan.cost.materialCost).toBe(PRICE.lumber + PRICE.lumber2x4);
+  });
+
+  it("登録していない断面をエラーにする", () => {
+    expect(() =>
+      createCutPlan([{ ...part("odd", 100, 1), section: { thickness: 10, width: 10 } }]),
+    ).toThrow("材種がない");
   });
 
   it("材の端まで使い切る場合は最後のカットを数えない", () => {
