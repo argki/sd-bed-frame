@@ -44,7 +44,7 @@ describe("summarizeParts", () => {
 
 describe("表示用の部材集計", () => {
   it("切り出す全部材を集計する", () => {
-    expect(PART_SUMMARY.reduce((sum, row) => sum + row.quantity, 0)).toBe(40);
+    expect(PART_SUMMARY.reduce((sum, row) => sum + row.quantity, 0)).toBe(57);
   });
 
   it("購入する12f材の小計が単価と本数に一致する", () => {
@@ -107,16 +107,12 @@ describe("表示用の部材集計", () => {
     );
   });
 
-  it("脚と根太受けは置いた個数を入数で切り上げて買う", () => {
+  it("DIYデザイン脚と根太受けは買わない", () => {
+    expect(FRAME_HARDWARE_PLACEMENTS).toHaveLength(0);
+    expect(FRAME_HARDWARE_SUMMARY).toHaveLength(0);
+    expect(PROJECT_COST.frameHardwareCost).toBe(0);
     for (const product of [FRAME_HARDWARE.leg, FRAME_HARDWARE.joistHanger]) {
-      const used = FRAME_HARDWARE_PLACEMENTS.filter((item) => item.name === product.name).length;
-      const row = FRAME_HARDWARE_SUMMARY.find((item) => item.id === product.id);
-      expect(used).toBeGreaterThan(0);
-      expect(row?.used).toBe(used);
-      expect(row?.packPrice).toBe(product.packPrice);
-      expect(row?.packCount).toBe(packsToBuy(used, product.packSize));
-      expect(row?.subtotal).toBe((row?.packCount ?? 0) * product.packPrice);
-      expect(PURCHASE_ITEMS.some((item) => item.name === product.name)).toBe(true);
+      expect(PURCHASE_ITEMS.some((item) => item.name === product.name)).toBe(false);
     }
   });
 

@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { FASTENER, FRAME_HARDWARE, LUMBER, LUMBER_2X4 } from "./constants";
-import {
-  CROSS_RAIL_LENGTH,
-  FRAME_MODULES,
-  MODULE_SIZE,
-  moduleHardware,
-  moduleParts,
-} from "./frame";
-import { boxFrom, intersects, placementBox } from "./geometry";
+import { FASTENER, LUMBER, LUMBER_2X4 } from "./constants";
+import { CROSS_RAIL_LENGTH, FRAME_MODULES, MODULE_SIZE, moduleParts } from "./frame";
+import { placementBox } from "./geometry";
 import {
   FRAME_JOINTS,
   SCREWS_PER_HANGER_SEAT,
@@ -47,18 +41,18 @@ describe("ネジ止め", () => {
     expect(new Set(FRAME_JOINTS.map((joint) => joint.id)).size).toBe(FRAME_JOINTS.length);
   });
 
-  it("頭側と足側で、モジュール内の留め位置は同じ", () => {
-    expect(withoutModule(jointsOf("foot-left"), "foot-left")).toEqual(
-      withoutModule(jointsOf("head-left"), "head-left"),
+  it("頭側と足側で、上枠とすのこと受け材の留め位置は同じ", () => {
+    expect(withoutModule(withoutLegs(jointsOf("foot-left")), "foot-left")).toEqual(
+      withoutModule(withoutLegs(jointsOf("head-left")), "head-left"),
     );
-    expect(withoutModule(jointsOf("foot-right"), "foot-right")).toEqual(
-      withoutModule(jointsOf("head-right"), "head-right"),
+    expect(withoutModule(withoutLegs(jointsOf("foot-right")), "foot-right")).toEqual(
+      withoutModule(withoutLegs(jointsOf("head-right")), "head-right"),
     );
   });
 
-  it("右側の留め位置は、左側を左右反転した位置になる", () => {
-    const left = jointsOf("head-left");
-    const right = jointsOf("head-right");
+  it("右側の上枠とすのこと受け材の留め位置は、左側を左右反転した位置になる", () => {
+    const left = withoutLegs(jointsOf("head-left"));
+    const right = withoutLegs(jointsOf("head-right"));
     expect(right).toHaveLength(left.length);
 
     for (const joint of left) {
@@ -67,8 +61,6 @@ describe("ネジ止め", () => {
           item.fromPlacementIndex === joint.fromPlacementIndex &&
           item.intoPlacementIndex === joint.intoPlacementIndex &&
           item.positions[0]?.z === joint.positions[0]?.z &&
-          item.hardwareId?.replaceAll("head-right", "") ===
-            joint.hardwareId?.replaceAll("head-left", "") &&
           item.fromPartId.replace("head-right", "") === joint.fromPartId.replace("head-left", "") &&
           item.intoPartId.replace("head-right", "") === joint.intoPartId.replace("head-left", ""),
       );
@@ -81,9 +73,6 @@ describe("ネジ止め", () => {
         joint.face.axis === "x" ? opposite(joint.face.side) : joint.face.side,
       );
       expect(mirrored.fastenerId).toBe(joint.fastenerId);
-      expect(mirrored.hardwareId?.replaceAll("head-right", "")).toBe(
-        joint.hardwareId?.replaceAll("head-left", ""),
-      );
       for (const [i, point] of joint.positions.entries()) {
         const other = mirrored.positions[i];
         expect(other?.x).toBeCloseTo(MODULE_SIZE.width - point.x);
@@ -97,15 +86,11 @@ describe("ネジ止め", () => {
 describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) => {
   const joints = jointsOf(module.id);
   const parts = moduleParts(module);
-  const hardware = moduleHardware(module).map((item) => ({
-    ...item,
-    box: boxFrom(item.position, item.size),
-  }));
   const rails = parts.filter((part) => part.name === "上枠");
   const cross = rails.find((part) => part.length === CROSS_RAIL_LENGTH);
   const slats = parts.find((part) => part.name === "天板のすのこ");
 
-  it("端の上枠は両端を、中央の上枠は根太受けごと、長辺の上枠から留める", () => {
+  it("端の上枠も中央の上枠も、長辺の上枠から木口へ留める", () => {
     expect(cross).toBeDefined();
     if (!cross) {
       return;
@@ -120,12 +105,11 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
     });
     expect(centerIndex).toBeGreaterThanOrEqual(0);
 
-    for (const [index, rail] of boxes.entries()) {
+    for (const [index] of boxes.entries()) {
       const atEnd = joints.filter(
         (joint) =>
           joint.intoPartId === cross.id &&
           joint.intoPlacementIndex === index &&
-          joint.hardwareId === undefined &&
           joint.fastenerId === FASTENER.rail.id,
       );
       expect(atEnd).toHaveLength(2);
@@ -133,20 +117,8 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
         expect(joint.positions).toHaveLength(SCREWS_PER_RAIL_END);
         expect(joint.fromPartId).toContain("side-rail");
         const from = placedBox(module.id, joint.fromPartId, joint.fromPlacementIndex);
-        const inward = joint.face.side === "min" ? 1 : -1;
-        const thickness = from.max.x - from.min.x;
         for (const point of joint.positions) {
           expect(point.y).toBeLessThanOrEqual(from.min.y + (from.max.y - from.min.y) * 0.5);
-          if (index !== centerIndex) {
-            continue;
-          }
-          const entered = shift(point, "x", inward * (thickness + 1));
-          const hanger = hardware.find(
-            (item) =>
-              item.name === FRAME_HARDWARE.joistHanger.name && strictlyInside(item.box, entered),
-          );
-          expect(hanger, "中央の上枠へ入るネジは根太受けを通る").toBeDefined();
-          expect(intersects(hanger?.box ?? rail, rail)).toBe(true);
         }
       }
     }
@@ -193,26 +165,22 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
     }
   });
 
-  it("四隅の脚と、中央の上枠の根太受けを、上枠の下面から留める", () => {
-    const legs = hardware.filter((item) => item.name === FRAME_HARDWARE.leg.name);
-    const hangers = hardware.filter((item) => item.name === FRAME_HARDWARE.joistHanger.name);
-    expect(legs).toHaveLength(4);
-    expect(hangers).toHaveLength(2);
-
-    for (const leg of legs) {
-      const matched = joints.filter((joint) => joint.hardwareId === leg.id);
-      expect(matched).toHaveLength(1);
-      expect(matched[0]?.fastenerId).toBe(FASTENER.slat.id);
-      expect(matched[0]?.positions).toHaveLength(SCREWS_PER_LEG);
-      expect(matched[0]?.face).toEqual({ axis: "y", side: "min" });
-      expect(matched[0]?.fromPartId).toContain("side-rail");
-    }
-    for (const hanger of hangers) {
-      const matched = joints.filter((joint) => joint.hardwareId === hanger.id);
-      expect(matched).toHaveLength(1);
-      expect(matched[0]?.fastenerId).toBe(FASTENER.slat.id);
-      expect(matched[0]?.positions).toHaveLength(SCREWS_PER_HANGER_SEAT);
-      expect(matched[0]?.fromPartId).toContain("cross-rail");
+  it("脚と受け材は、長辺の上枠に接する上面から2本留める", () => {
+    const supports = parts.filter((part) => part.name === "脚" || part.name === "受け材");
+    expect(supports.length).toBeGreaterThan(0);
+    for (const part of supports) {
+      for (const [index] of part.placements.entries()) {
+        const matched = joints.filter(
+          (joint) => joint.fromPartId === part.id && joint.fromPlacementIndex === index,
+        );
+        expect(matched).toHaveLength(1);
+        expect(matched[0]?.fastenerId).toBe(FASTENER.slat.id);
+        expect(matched[0]?.positions).toHaveLength(
+          part.name === "脚" ? SCREWS_PER_LEG : SCREWS_PER_HANGER_SEAT,
+        );
+        expect(matched[0]?.face).toEqual({ axis: "y", side: "max" });
+        expect(matched[0]?.intoPartId).toContain("side-rail");
+      }
     }
   });
 
@@ -231,17 +199,19 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
 
       for (const point of joint.positions) {
         expect(axisOf(point, axis)).toBeCloseTo(faceValue);
-        if (joint.hardwareId) {
+        const into = placedBox(module.id, joint.intoPartId, joint.intoPlacementIndex);
+        const staysInSupport = fastener.length <= thickness;
+        if (staysInSupport) {
           const tip = shift(point, axis, inward * (fastener.length - 1));
           expect(strictlyInside(from, tip)).toBe(true);
-          continue;
+          expect(inward < 0 ? into.min[axis] : into.max[axis]).toBeCloseTo(faceValue);
+        } else {
+          expect(fastener.length).toBeGreaterThan(thickness);
+          const contact = faceValue + inward * thickness;
+          expect(inward > 0 ? into.min[axis] : into.max[axis]).toBeCloseTo(contact);
+          const entered = shift(point, axis, inward * (thickness + 1));
+          expect(strictlyInside(into, entered)).toBe(true);
         }
-        const into = placedBox(module.id, joint.intoPartId, joint.intoPlacementIndex);
-        expect(fastener.length).toBeGreaterThan(thickness);
-        const contact = faceValue + inward * thickness;
-        expect(inward > 0 ? into.min[axis] : into.max[axis]).toBeCloseTo(contact);
-        const entered = shift(point, axis, inward * (thickness + 1));
-        expect(strictlyInside(into, entered)).toBe(true);
         for (const other of otherAxes(axis)) {
           expect(axisOf(point, other)).toBeGreaterThanOrEqual(
             Math.max(from.min[other], into.min[other]) + fastener.diameter / 2,
@@ -284,8 +254,11 @@ function withoutModule(joints: readonly ScrewJoint[], moduleId: string): ScrewJo
     moduleId: "module",
     fromPartId: joint.fromPartId.replaceAll(moduleId, "module"),
     intoPartId: joint.intoPartId.replaceAll(moduleId, "module"),
-    hardwareId: joint.hardwareId?.replaceAll(moduleId, "module"),
   }));
+}
+
+function withoutLegs(joints: readonly ScrewJoint[]): ScrewJoint[] {
+  return joints.filter((joint) => !joint.fromPartId.endsWith("-leg"));
 }
 
 function opposite(side: "min" | "max"): "min" | "max" {

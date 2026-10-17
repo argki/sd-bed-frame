@@ -26,6 +26,8 @@ import { type Axis, type Part, placedSize, type Vec3 } from "../design/types";
 const PART_COLORS: Readonly<Record<string, string>> = {
   天板のすのこ: "#e8c27a",
   上枠: "#a16207",
+  脚: "#7c4a12",
+  受け材: "#c4841d",
 };
 
 const HARDWARE_COLORS: Readonly<Record<string, string>> = {

@@ -1,5 +1,4 @@
 import {
-  FRAME_HARDWARE,
   LUMBER,
   LUMBER_2X4,
   MATTRESS,
@@ -7,6 +6,7 @@ import {
   STORAGE_BOX,
   STORAGE_CLEARANCE,
 } from "./constants";
+import { WOOD_SUPPORT } from "./support";
 import { type FrameModule, type Part, placedSize, type Vec3 } from "./types";
 
 const SLAT_T = LUMBER.thickness;
@@ -22,8 +22,8 @@ export const MODULE_SIZE = {
 
 /** 箱の高さと、出し入れに必要な余裕。開口はこの高さ以上にする。 */
 export const STORAGE_CLEAR_HEIGHT = STORAGE_BOX.height + STORAGE_CLEARANCE;
-/** 上枠の下端。脚の高さに合わせる。 */
-export const RAIL_BOTTOM = FRAME_HARDWARE.leg.height;
+/** 上枠の下端。木の脚の高さに合わせる。 */
+export const RAIL_BOTTOM = WOOD_SUPPORT.leg.length;
 /** 床からすのこの上面までの高さ。 */
 export const FRAME_HEIGHT = RAIL_BOTTOM + RAIL_W + SLAT_T;
 
@@ -130,58 +130,100 @@ export function moduleParts(module: FrameModule): Part[] {
         widthAxis: "x",
       })),
     },
+    {
+      id: `${module.id}-seat`,
+      name: WOOD_SUPPORT.seat.name,
+      moduleId: module.id,
+      length: WOOD_SUPPORT.seat.length,
+      section: LUMBER_2X4,
+      placements: [0, MODULE_SIZE.width - LUMBER_2X4.width].map((x) => ({
+        position: { x, y: RAIL_BOTTOM - WOOD_SUPPORT.seat.length, z: DIVIDER_Z },
+        lengthAxis: "y",
+        widthAxis: "x",
+      })),
+    },
   ];
-
-  if (module.openSide === "left") {
-    return parts;
-  }
-  return parts.map((part) => ({
-    ...part,
-    placements: part.placements.map((placement) => ({
-      ...placement,
-      position: mirrorX(placement.position, placedSize(part.length, placement, part.section).x),
-    })),
-  }));
+  const mirrored =
+    module.openSide === "left"
+      ? parts
+      : parts.map((part) => ({
+          ...part,
+          placements: part.placements.map((placement) => ({
+            ...placement,
+            position: mirrorX(
+              placement.position,
+              placedSize(part.length, placement, part.section).x,
+            ),
+          })),
+        }));
+  const legs = legPart(module);
+  return legs ? [...mirrored, legs] : mirrored;
 }
 
-export function moduleHardware(module: FrameModule): FrameHardwarePlacement[] {
-  const leg = FRAME_HARDWARE.leg;
-  const hanger = FRAME_HARDWARE.joistHanger;
-  const hangerZ = DIVIDER_Z + (RAIL_T - hanger.width) / 2;
-  const legCorners = [
-    { x: 0, z: 0 },
-    { x: MODULE_SIZE.width - RAIL_T, z: 0 },
-    { x: 0, z: MODULE_SIZE.length - RAIL_T },
-    { x: MODULE_SIZE.width - RAIL_T, z: MODULE_SIZE.length - RAIL_T },
-  ] as const;
-  const items: FrameHardwarePlacement[] = [
-    ...legCorners.map(
-      (corner, index): FrameHardwarePlacement => ({
-        id: `${module.id}-leg-${index + 1}`,
-        name: leg.name,
-        moduleId: module.id,
-        position: { x: corner.x, y: 0, z: corner.z },
-        size: { x: RAIL_T, y: leg.height, z: RAIL_T },
-      }),
-    ),
-    ...[RAIL_T, MODULE_SIZE.width - RAIL_T - hanger.depth].map(
-      (x, index): FrameHardwarePlacement => ({
-        id: `${module.id}-joist-hanger-${index + 1}`,
-        name: hanger.name,
-        moduleId: module.id,
-        position: { x, y: RAIL_BOTTOM, z: hangerZ },
-        size: { x: hanger.depth, y: hanger.innerWidth, z: hanger.width },
-      }),
-    ),
-  ];
+/** 鋼製の脚と根太受けは置かない。開口の支えは木材の脚と受け材である。 */
+export function moduleHardware(_module: FrameModule): FrameHardwarePlacement[] {
+  return [];
+}
 
-  if (module.openSide === "left") {
-    return items;
+/**
+ * 境の脚は、頭側または左側のモジュールに付ける。
+ * 幅の境では 89mm を境の両側へ出し、長さの境では 89mm を境の両側へ出す。
+ * 外隅は、ベッドの外側へ出さない。
+ */
+const LEG_PLACEMENTS: readonly {
+  moduleId: string;
+  x: number;
+  z: number;
+  widthAxis: "x" | "z";
+}[] = [
+  { moduleId: "head-left", x: 0, z: 0, widthAxis: "x" },
+  { moduleId: "head-left", x: MODULE_SIZE.width - LUMBER_2X4.width / 2, z: 0, widthAxis: "x" },
+  { moduleId: "head-left", x: 0, z: MODULE_SIZE.length - LUMBER_2X4.width / 2, widthAxis: "z" },
+  {
+    moduleId: "head-left",
+    x: MODULE_SIZE.width - LUMBER_2X4.width / 2,
+    z: MODULE_SIZE.length - LUMBER_2X4.thickness / 2,
+    widthAxis: "x",
+  },
+  { moduleId: "head-right", x: MODULE_SIZE.width - LUMBER_2X4.width, z: 0, widthAxis: "x" },
+  {
+    moduleId: "head-right",
+    x: MODULE_SIZE.width - RAIL_T,
+    z: MODULE_SIZE.length - LUMBER_2X4.width / 2,
+    widthAxis: "z",
+  },
+  { moduleId: "foot-left", x: 0, z: MODULE_SIZE.length - RAIL_T, widthAxis: "x" },
+  {
+    moduleId: "foot-left",
+    x: MODULE_SIZE.width - LUMBER_2X4.width / 2,
+    z: MODULE_SIZE.length - RAIL_T,
+    widthAxis: "x",
+  },
+  {
+    moduleId: "foot-right",
+    x: MODULE_SIZE.width - LUMBER_2X4.width,
+    z: MODULE_SIZE.length - RAIL_T,
+    widthAxis: "x",
+  },
+];
+
+function legPart(module: FrameModule): Part | undefined {
+  const placements = LEG_PLACEMENTS.filter((item) => item.moduleId === module.id);
+  if (placements.length === 0) {
+    return undefined;
   }
-  return items.map((item) => ({
-    ...item,
-    position: mirrorX(item.position, item.size.x),
-  }));
+  return {
+    id: `${module.id}-leg`,
+    name: WOOD_SUPPORT.leg.name,
+    moduleId: module.id,
+    length: WOOD_SUPPORT.leg.length,
+    section: LUMBER_2X4,
+    placements: placements.map((item) => ({
+      position: { x: item.x, y: 0, z: item.z },
+      lengthAxis: "y" as const,
+      widthAxis: item.widthAxis,
+    })),
+  };
 }
 
 export function moduleStorageSlots(module: FrameModule): StorageSlot[] {

@@ -159,7 +159,7 @@ function summarizeFrameHardware(): HardwareSummary[] {
       hangerUsed,
       `板厚${hanger.thickness} × 幅${hanger.width} × 内寸${hanger.innerWidth} × 奥行き${hanger.depth} mm（${hanger.packSize}${hanger.unit}入、使用${hangerUsed}${hanger.unit}）`,
     ),
-  ];
+  ].filter((item) => item.used > 0);
 }
 
 function hardwareCount(name: string): number {

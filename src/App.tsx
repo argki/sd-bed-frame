@@ -90,7 +90,7 @@ export function App() {
               id="purchase-heading"
               eyebrow="Purchase"
               title="購入するもの"
-              description={`${FRAME_CUT_PLAN.stocks.map((stock) => `${stock.name}を${number.format(stock.boardCount)}本`).join("、")}購入し、${number.format(FRAME_CUT_PLAN.pieceCount)}点の部材を切り出します。脚、根太受け、コーススレッド、ボルト、ナット、座金は使用数を入数で切り上げて数えます。`}
+              description={`${FRAME_CUT_PLAN.stocks.map((stock) => `${stock.name}を${number.format(stock.boardCount)}本`).join("、")}購入し、${number.format(FRAME_CUT_PLAN.pieceCount)}点の部材を切り出します。コーススレッド、ボルト、ナット、座金は使用数を入数で切り上げて数えます。`}
             />
             <div className="mt-6 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
               <div className="overflow-x-auto">
