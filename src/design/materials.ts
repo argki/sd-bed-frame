@@ -3,6 +3,7 @@ import { FRAME_CUT_PLAN } from "./cut-plan";
 import { FRAME_HARDWARE_PLACEMENTS, FRAME_PARTS } from "./frame";
 import { FRAME_JOINTS } from "./joints";
 import { MODULE_JOINTS } from "./module-joints";
+import { isPanelPart } from "./panel";
 import type { Part } from "./types";
 
 export type PartSummary = {
@@ -69,9 +70,12 @@ const lumberItems: readonly PurchaseItem[] = FRAME_CUT_PLAN.stocks.map((stock) =
   subtotal: stock.materialCost,
 }));
 
+/** パネルのすのことパネル桟を留めるネジ。買う袋は全ねじの行と同じで、追加の金物はない。 */
+export const PANEL_FASTENER = summarizePanelFastener();
+
 const fastenerItems: readonly PurchaseItem[] = FASTENER_SUMMARY.map((fastener) => ({
   name: `${fastener.name} ${fastener.thread}`,
-  dimensions: `${fastener.diameter} × ${fastener.length} mm（${fastener.packSize}本入、使用${fastener.used}本）`,
+  dimensions: fastenerDimensions(fastener),
   quantity: fastener.packCount,
   unit: "袋",
   unitPrice: fastener.packPrice,
@@ -262,6 +266,42 @@ function packItem(
     packPrice: item.packPrice,
     subtotal: packCount * item.packPrice,
     unit: item.unit,
+  };
+}
+
+function fastenerDimensions(fastener: FastenerSummary): string {
+  const panel =
+    fastener.id === PANEL_FASTENER.fastenerId ? `、パネルの固定${PANEL_FASTENER.used}本` : "";
+  return `${fastener.diameter} × ${fastener.length} mm（${fastener.packSize}本入、使用${fastener.used}本${panel}）`;
+}
+
+function summarizePanelFastener(): {
+  readonly fastenerId: string;
+  readonly name: string;
+  readonly diameter: number;
+  readonly length: number;
+  readonly used: number;
+  readonly packCount: number;
+  readonly packPrice: number;
+  readonly subtotal: number;
+} {
+  const fastener = FASTENER.slat;
+  const panelIds = new Set(
+    FRAME_PARTS.filter((part) => isPanelPart(part.name)).map((part) => part.id),
+  );
+  const used = FRAME_JOINTS.filter(
+    (joint) => panelIds.has(joint.fromPartId) && panelIds.has(joint.intoPartId),
+  ).reduce((sum, joint) => sum + joint.positions.length, 0);
+  const summary = summarizeFastener(fastener);
+  return {
+    fastenerId: fastener.id,
+    name: `${fastener.name} ${fastener.thread}`,
+    diameter: fastener.diameter,
+    length: fastener.length,
+    used,
+    packCount: summary.packCount,
+    packPrice: fastener.packPrice,
+    subtotal: summary.subtotal,
   };
 }
 

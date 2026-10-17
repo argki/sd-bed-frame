@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { LUMBER, MATTRESS } from "./constants";
 import { FRAME_CUT_PLAN, pieceLabel } from "./cut-plan";
-import { explodedPosition, MODULE_EXPLODE_DISTANCE } from "./explode";
+import { explodedPosition, MODULE_EXPLODE_DISTANCE, panelGroupCenters } from "./explode";
 import { FRAME_HEIGHT, FRAME_MODULES, FRAME_PARTS, MODULE_SIZE } from "./frame";
 import { intersects } from "./geometry";
+import { isPanelPart } from "./panel";
 import { type Box3, placedSize, type Vec3 } from "./types";
 
 const bedCenter: Vec3 = { x: 600, y: 200, z: 975 };
@@ -40,6 +41,44 @@ describe("explodedPosition", () => {
     );
   });
 
+  it("部材分解では、すのこ5枚とパネル桟が相対位置を保って上へ離れる", () => {
+    const module = FRAME_MODULES[0];
+    if (!module) {
+      throw new Error("モジュールがない");
+    }
+    const group = panelGroupCenters().get(module.id);
+    const moduleCenter = {
+      x: module.origin.x + MODULE_SIZE.width / 2,
+      y: FRAME_HEIGHT / 2,
+      z: module.origin.z + MODULE_SIZE.length / 2,
+    };
+    const members = panelMemberCenters(module.id);
+    expect(members.filter((member) => member.name === "天板のすのこ")).toHaveLength(5);
+    expect(members.filter((member) => member.name === "パネル桟")).toHaveLength(2);
+    expect(group).toBeDefined();
+    if (!group) {
+      return;
+    }
+    const moved = members.map((member) =>
+      explodedPosition(member.center, moduleCenter, bedCenter, 1, "part", group),
+    );
+    const origin = members[0];
+    const originMoved = moved[0];
+    if (!origin || !originMoved) {
+      throw new Error("パネルの部材がない");
+    }
+    for (const [index, member] of members.entries()) {
+      const next = moved[index];
+      if (!next) {
+        throw new Error("分解後の位置がない");
+      }
+      expect(next.x - member.center.x).toBeCloseTo(originMoved.x - origin.center.x);
+      expect(next.y - member.center.y).toBeCloseTo(originMoved.y - origin.center.y);
+      expect(next.z - member.center.z).toBeCloseTo(originMoved.z - origin.center.z);
+    }
+    expect(originMoved.y).toBeGreaterThan(origin.center.y);
+  });
+
   it("部材分解では、左右の境で接していた上枠とすのこが重ならない", () => {
     const boxes = explodedPartBoxes();
     const seam = MODULE_SIZE.width;
@@ -70,6 +109,7 @@ function explodedPartBoxes(): {
   assembled: Box3;
 }[] {
   const bedCenter = { x: MATTRESS.width / 2, y: FRAME_HEIGHT / 2, z: MATTRESS.length / 2 };
+  const groups = panelGroupCenters();
   const centers = new Map(
     FRAME_MODULES.map((module) => [
       module.id,
@@ -98,7 +138,8 @@ function explodedPartBoxes(): {
         y: origin.y + placement.position.y + size.y / 2,
         z: origin.z + placement.position.z + size.z / 2,
       };
-      const exploded = explodedPosition(center, moduleCenter, bedCenter, 1, "part");
+      const group = part && isPanelPart(part.name) ? groups.get(part.moduleId) : undefined;
+      const exploded = explodedPosition(center, moduleCenter, bedCenter, 1, "part", group);
       const assembled = {
         min: {
           x: center.x - size.x / 2,
@@ -129,6 +170,27 @@ function explodedPartBoxes(): {
         },
       };
     }),
+  );
+}
+
+function panelMemberCenters(moduleId: string): { name: string; center: Vec3 }[] {
+  const origin = FRAME_MODULES.find((module) => module.id === moduleId)?.origin;
+  if (!origin) {
+    throw new Error(`モジュール ${moduleId} の原点が見つからない`);
+  }
+  return FRAME_PARTS.filter((part) => part.moduleId === moduleId && isPanelPart(part.name)).flatMap(
+    (part) =>
+      part.placements.map((placement) => {
+        const size = placedSize(part.length, placement, part.section);
+        return {
+          name: part.name,
+          center: {
+            x: origin.x + placement.position.x + size.x / 2,
+            y: origin.y + placement.position.y + size.y / 2,
+            z: origin.z + placement.position.z + size.z / 2,
+          },
+        };
+      }),
   );
 }
 

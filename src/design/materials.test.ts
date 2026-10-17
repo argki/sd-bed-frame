@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { FASTENER, FRAME_HARDWARE, MODULE_BOLT, MODULE_FASTENER, PRICE } from "./constants";
 import { FRAME_CUT_PLAN } from "./cut-plan";
-import { FRAME_HARDWARE_PLACEMENTS } from "./frame";
+import { FRAME_HARDWARE_PLACEMENTS, FRAME_PARTS } from "./frame";
 import { FRAME_JOINTS } from "./joints";
 import {
   FASTENER_SUMMARY,
   FRAME_HARDWARE_SUMMARY,
   MODULE_HARDWARE_SUMMARY,
+  PANEL_FASTENER,
   PART_SUMMARY,
   PROJECT_COST,
   PURCHASE_ITEMS,
@@ -14,6 +15,7 @@ import {
   summarizeParts,
 } from "./materials";
 import { MODULE_JOINTS } from "./module-joints";
+import { isPanelPart } from "./panel";
 import type { Part } from "./types";
 
 describe("summarizeParts", () => {
@@ -89,6 +91,23 @@ describe("表示用の部材集計", () => {
     expect(FASTENER_SUMMARY.find((item) => item.id === FASTENER.slat.id)?.screwsPerJoint).toBe(
       null,
     );
+  });
+
+  it("購入リストに、パネルを固定する全ねじの本数と袋の費用が出る", () => {
+    const panelIds = new Set(
+      FRAME_PARTS.filter((part) => isPanelPart(part.name)).map((part) => part.id),
+    );
+    const used = FRAME_JOINTS.filter(
+      (joint) => panelIds.has(joint.fromPartId) && panelIds.has(joint.intoPartId),
+    ).reduce((sum, joint) => sum + joint.positions.length, 0);
+    const item = PURCHASE_ITEMS.find((row) => row.name === PANEL_FASTENER.name);
+    expect(used).toBeGreaterThan(0);
+    expect(PANEL_FASTENER.used).toBe(used);
+    expect(PANEL_FASTENER.fastenerId).toBe(FASTENER.slat.id);
+    expect(PANEL_FASTENER.subtotal).toBe(PANEL_FASTENER.packCount * PANEL_FASTENER.packPrice);
+    expect(item?.dimensions).toContain(`パネルの固定${PANEL_FASTENER.used}本`);
+    expect(item?.subtotal).toBe(PANEL_FASTENER.subtotal);
+    expect(item?.unitPrice).toBe(FASTENER.slat.packPrice);
   });
 
   it("合計に木材、フレームの金物、コーススレッド、モジュールの連結金物、カット代を含める", () => {

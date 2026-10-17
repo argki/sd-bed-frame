@@ -4,7 +4,7 @@ import { useLayoutEffect, useMemo, useState } from "react";
 import { CanvasTexture, Matrix4, Quaternion, SRGBColorSpace, Vector3 } from "three";
 import { FRAME_HARDWARE, MATTRESS, MODULE_FASTENER } from "../design/constants";
 import { FRAME_CUT_PLAN, pieceId, pieceLabel } from "../design/cut-plan";
-import { type ExplodeMode, explodedPosition } from "../design/explode";
+import { type ExplodeMode, explodedPosition, panelGroupCenters } from "../design/explode";
 import {
   FRAME_HARDWARE_PLACEMENTS,
   FRAME_HEIGHT,
@@ -21,6 +21,7 @@ import {
   MODULE_HARDWARE_SUMMARY,
 } from "../design/materials";
 import { MODULE_JOINTS } from "../design/module-joints";
+import { isPanelPart } from "../design/panel";
 import { type Axis, type Part, placedSize, type Vec3 } from "../design/types";
 
 const PART_COLORS: Readonly<Record<string, string>> = {
@@ -63,6 +64,7 @@ type Solid = {
   readonly size: [number, number, number];
   readonly color: string;
   readonly metal: boolean;
+  readonly groupCenter?: Vec3;
 };
 
 const bedCenterVec: Vec3 = { x: bedCenter[0], y: bedCenter[1], z: bedCenter[2] };
@@ -312,6 +314,7 @@ function place(
     bedCenterVec,
     amount,
     mode,
+    solid.groupCenter,
   );
   return [position.x, position.y, position.z];
 }
@@ -501,6 +504,7 @@ type ScrewMarker = {
   readonly color: string;
   /** 2 のときは両端にナットを描く。寸切ボルトには頭がない。 */
   readonly nutCount: 1 | 2;
+  readonly groupCenter?: Vec3;
 };
 
 function Screw({ marker, head }: { marker: ScrewMarker; head: [number, number, number] }) {
@@ -565,7 +569,14 @@ function placePoint(
   if (!moduleCenter) {
     throw new Error(`モジュール ${marker.moduleId} の中心が見つからない`);
   }
-  const exploded = explodedPosition(marker.partCenter, moduleCenter, bedCenterVec, amount, mode);
+  const exploded = explodedPosition(
+    marker.partCenter,
+    moduleCenter,
+    bedCenterVec,
+    amount,
+    mode,
+    marker.groupCenter,
+  );
   return [
     marker.head.x + exploded.x - marker.partCenter.x,
     marker.head.y + exploded.y - marker.partCenter.y,
@@ -622,8 +633,14 @@ function hardwareSolids(): Solid[] {
 
 function partSolids(): Solid[] {
   const origins = new Map(FRAME_MODULES.map((module) => [module.id, module.origin]));
+  const groups = panelGroupCenters();
   return FRAME_PARTS.flatMap((part) =>
-    placementsOf(part, origins, PART_COLORS[part.name] ?? "#e8c27a"),
+    placementsOf(
+      part,
+      origins,
+      PART_COLORS[part.name] ?? "#e8c27a",
+      isPanelPart(part.name) ? groups.get(part.moduleId) : undefined,
+    ),
   );
 }
 
@@ -632,6 +649,7 @@ function screwMarkers(): ScrewMarker[] {
   const parts = new Map(FRAME_PARTS.map((part) => [part.id, part]));
   const fasteners = new Map(FASTENER_SUMMARY.map((fastener) => [fastener.id, fastener]));
 
+  const groups = panelGroupCenters();
   return FRAME_JOINTS.flatMap((joint) => {
     const origin = origins.get(joint.moduleId);
     const part = parts.get(joint.fromPartId);
@@ -657,6 +675,7 @@ function screwMarkers(): ScrewMarker[] {
         length: fastener.length,
         color: SCREW_COLORS[fastener.id] ?? "#292524",
         nutCount: 1,
+        groupCenter: isPanelPart(part.name) ? groups.get(joint.moduleId) : undefined,
       }),
     );
   }).concat(moduleBoltMarkers(origins, parts));
@@ -706,7 +725,12 @@ function boxSolids(): Solid[] {
   return STORAGE_SLOTS.map((slot, index) => solidFrom(slot, origins, `box-${index}`, BOX_COLOR));
 }
 
-function placementsOf(part: Part, origins: ReadonlyMap<string, Vec3>, color: string): Solid[] {
+function placementsOf(
+  part: Part,
+  origins: ReadonlyMap<string, Vec3>,
+  color: string,
+  groupCenter?: Vec3,
+): Solid[] {
   return part.placements.map((placement, index) => {
     const origin = origins.get(part.moduleId);
     if (!origin) {
@@ -726,6 +750,7 @@ function placementsOf(part: Part, origins: ReadonlyMap<string, Vec3>, color: str
       size: [size.x, size.y, size.z],
       color,
       metal: false,
+      groupCenter,
     };
   });
 }
