@@ -488,6 +488,11 @@ function planeQuaternion(textDir: Vector3, normal: Vector3): Quaternion {
   const x = textDir.clone().normalize();
   const z = normal.clone().normalize();
   const y = new Vector3().crossVectors(z, x).normalize();
+  // 側面では文字の上が世界の +Y を向くようにする。上下逆なら面内で 180° 回す。
+  if (y.y < 0) {
+    x.negate();
+    y.negate();
+  }
   x.crossVectors(y, z).normalize();
   return new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(x, y, z));
 }
