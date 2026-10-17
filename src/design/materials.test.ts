@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FASTENER, MODULE_BOLT, MODULE_FASTENER } from "./constants";
-import { FRAME_JOINTS, SCREWS_PER_RAIL_END, SCREWS_PER_SLAT_SUPPORT } from "./joints";
+import { FRAME_JOINTS } from "./joints";
 import {
   FASTENER_SUMMARY,
   MODULE_HARDWARE_SUMMARY,
@@ -41,7 +41,7 @@ describe("summarizeParts", () => {
 
 describe("表示用の部材集計", () => {
   it("切り出す全部材を集計する", () => {
-    expect(PART_SUMMARY.reduce((sum, row) => sum + row.quantity, 0)).toBe(64);
+    expect(PART_SUMMARY.reduce((sum, row) => sum + row.quantity, 0)).toBe(40);
   });
 
   it("購入する12f材の小計が単価と本数に一致する", () => {
@@ -66,12 +66,8 @@ describe("表示用の部材集計", () => {
       expect(fastener.subtotal).toBe(fastener.packCount * fastener.packPrice);
     }
 
-    expect(FASTENER_SUMMARY.find((item) => item.id === FASTENER.rail.id)?.screwsPerJoint).toBe(
-      SCREWS_PER_RAIL_END,
-    );
-    expect(FASTENER_SUMMARY.find((item) => item.id === FASTENER.slat.id)?.screwsPerJoint).toBe(
-      SCREWS_PER_SLAT_SUPPORT,
-    );
+    expect(FASTENER_SUMMARY.find((item) => item.id === FASTENER.rail.id)?.screwsPerJoint).toBe(0);
+    expect(FASTENER_SUMMARY.find((item) => item.id === FASTENER.slat.id)?.screwsPerJoint).toBe(0);
   });
 
   it("合計に木材、コーススレッド、モジュールの連結金物、カット代を含める", () => {

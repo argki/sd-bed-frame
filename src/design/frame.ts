@@ -1,8 +1,18 @@
-import { LUMBER, MATTRESS, SLAT_MAX_GAP, STORAGE_BOX, STORAGE_CLEARANCE } from "./constants";
-import { type FrameModule, type Part, type PartPlacement, placedSize, type Vec3 } from "./types";
+import {
+  FRAME_HARDWARE,
+  LUMBER,
+  LUMBER_2X4,
+  MATTRESS,
+  SLAT_MAX_GAP,
+  STORAGE_BOX,
+  STORAGE_CLEARANCE,
+} from "./constants";
+import { type FrameModule, type Part, placedSize, type Vec3 } from "./types";
 
-const T = LUMBER.thickness;
-const B = LUMBER.width;
+const SLAT_T = LUMBER.thickness;
+const SLAT_W = LUMBER.width;
+const RAIL_T = LUMBER_2X4.thickness;
+const RAIL_W = LUMBER_2X4.width;
 
 /** モジュール1つの外寸。マットレスを幅と長さでそれぞれ2等分する。 */
 export const MODULE_SIZE = {
@@ -10,28 +20,28 @@ export const MODULE_SIZE = {
   length: MATTRESS.length / 2,
 } as const;
 
-/** 箱を出し入れする開口の高さ。 */
+/** 箱の高さと、出し入れに必要な余裕。開口はこの高さ以上にする。 */
 export const STORAGE_CLEAR_HEIGHT = STORAGE_BOX.height + STORAGE_CLEARANCE;
-/** 柱の長さ。柱の上端に横桟とすのこを載せる。 */
-export const POST_HEIGHT = STORAGE_CLEAR_HEIGHT + B;
+/** 上枠の下端。脚の高さに合わせる。 */
+export const RAIL_BOTTOM = FRAME_HARDWARE.leg.height;
 /** 床からすのこの上面までの高さ。 */
-export const FRAME_HEIGHT = POST_HEIGHT + T;
+export const FRAME_HEIGHT = RAIL_BOTTOM + RAIL_W + SLAT_T;
 
 /** すのこの枚数。すき間が SLAT_MAX_GAP 以下になる最小の枚数にする。 */
 export const SLAT_COUNT = minSlatCount(MODULE_SIZE.width);
-export const SLAT_GAP = (MODULE_SIZE.width - SLAT_COUNT * B) / (SLAT_COUNT - 1);
+export const SLAT_GAP = (MODULE_SIZE.width - SLAT_COUNT * SLAT_W) / (SLAT_COUNT - 1);
 
-/** 左右の柱の間に渡す横桟の長さ。 */
-export const CROSS_RAIL_LENGTH = MODULE_SIZE.width - 2 * B;
+/** 長辺の上枠のあいだに渡す上枠の長さ。 */
+export const CROSS_RAIL_LENGTH = MODULE_SIZE.width - 2 * RAIL_T;
 /** 箱を置ける奥行き。反対側の開口まで使える。 */
 export const STORAGE_DEPTH = MODULE_SIZE.width;
-/** 中央の上横桟の z 位置。2つの区画が同じ幅になるようにする。 */
-const DIVIDER_Z = (MODULE_SIZE.length - T) / 2;
+/** 中央の上枠の z 位置。2つの区画が同じ幅になるようにする。 */
+const DIVIDER_Z = (MODULE_SIZE.length - RAIL_T) / 2;
 
-/** 開口から見た区画の z 範囲。端板、仕切り板の厚みを除く。 */
+/** 開口から見た区画の z 範囲。両端と中央の上枠の厚みを除く。 */
 const BAYS = [
-  { minZ: T, maxZ: DIVIDER_Z },
-  { minZ: DIVIDER_Z + T, maxZ: MODULE_SIZE.length - T },
+  { minZ: RAIL_T, maxZ: DIVIDER_Z },
+  { minZ: DIVIDER_Z + RAIL_T, maxZ: MODULE_SIZE.length - RAIL_T },
 ] as const;
 
 /** 1つの区画に奥行き方向へ並べる箱の数。手前に余裕を残す。 */
@@ -73,54 +83,51 @@ export const STORED_BOX_SIZE: Vec3 = {
   z: STORAGE_BOX.width,
 };
 
+/** 木材ではない脚と根太受け。位置は所属モジュールの原点から。 */
+export type FrameHardwarePlacement = {
+  readonly id: string;
+  readonly name: string;
+  readonly moduleId: string;
+  readonly position: Vec3;
+  readonly size: Vec3;
+};
+
 export function moduleParts(module: FrameModule): Part[] {
   const parts: Part[] = [
+    {
+      id: `${module.id}-side-rail`,
+      name: "上枠",
+      moduleId: module.id,
+      length: MODULE_SIZE.length,
+      section: LUMBER_2X4,
+      placements: [0, MODULE_SIZE.width - RAIL_T].map((x) => ({
+        position: { x, y: RAIL_BOTTOM, z: 0 },
+        lengthAxis: "z",
+        widthAxis: "y",
+      })),
+    },
+    {
+      id: `${module.id}-cross-rail`,
+      name: "上枠",
+      moduleId: module.id,
+      length: CROSS_RAIL_LENGTH,
+      section: LUMBER_2X4,
+      placements: [0, DIVIDER_Z, MODULE_SIZE.length - RAIL_T].map((z) => ({
+        position: { x: RAIL_T, y: RAIL_BOTTOM, z },
+        lengthAxis: "x",
+        widthAxis: "y",
+      })),
+    },
     {
       id: `${module.id}-slat`,
       name: "天板のすのこ",
       moduleId: module.id,
       length: MODULE_SIZE.length,
+      section: LUMBER,
       placements: Array.from({ length: SLAT_COUNT }, (_, i) => ({
-        position: { x: i * (B + SLAT_GAP), y: POST_HEIGHT, z: 0 },
+        position: { x: i * (SLAT_W + SLAT_GAP), y: RAIL_BOTTOM + RAIL_W, z: 0 },
         lengthAxis: "z",
         widthAxis: "x",
-      })),
-    },
-    {
-      id: `${module.id}-post`,
-      name: "柱",
-      moduleId: module.id,
-      length: POST_HEIGHT,
-      placements: [0, MODULE_SIZE.width - B].flatMap((x) =>
-        [0, DIVIDER_Z, MODULE_SIZE.length - T].map(
-          (z): PartPlacement => ({
-            position: { x, y: 0, z },
-            lengthAxis: "y",
-            widthAxis: "x",
-          }),
-        ),
-      ),
-    },
-    {
-      id: `${module.id}-upper-rail`,
-      name: "上横桟",
-      moduleId: module.id,
-      length: CROSS_RAIL_LENGTH,
-      placements: [0, DIVIDER_Z, MODULE_SIZE.length - T].map((z) => ({
-        position: { x: B, y: STORAGE_CLEAR_HEIGHT, z },
-        lengthAxis: "x",
-        widthAxis: "y",
-      })),
-    },
-    {
-      id: `${module.id}-lower-rail`,
-      name: "下横桟",
-      moduleId: module.id,
-      length: CROSS_RAIL_LENGTH,
-      placements: [0, MODULE_SIZE.length - T].map((z) => ({
-        position: { x: B, y: 0, z },
-        lengthAxis: "x",
-        widthAxis: "y",
       })),
     },
   ];
@@ -132,8 +139,48 @@ export function moduleParts(module: FrameModule): Part[] {
     ...part,
     placements: part.placements.map((placement) => ({
       ...placement,
-      position: mirrorX(placement.position, placedSize(part.length, placement).x),
+      position: mirrorX(placement.position, placedSize(part.length, placement, part.section).x),
     })),
+  }));
+}
+
+export function moduleHardware(module: FrameModule): FrameHardwarePlacement[] {
+  const leg = FRAME_HARDWARE.leg;
+  const hanger = FRAME_HARDWARE.joistHanger;
+  const hangerZ = DIVIDER_Z + (RAIL_T - hanger.width) / 2;
+  const legCorners = [
+    { x: 0, z: 0 },
+    { x: MODULE_SIZE.width - RAIL_T, z: 0 },
+    { x: 0, z: MODULE_SIZE.length - RAIL_T },
+    { x: MODULE_SIZE.width - RAIL_T, z: MODULE_SIZE.length - RAIL_T },
+  ] as const;
+  const items: FrameHardwarePlacement[] = [
+    ...legCorners.map(
+      (corner, index): FrameHardwarePlacement => ({
+        id: `${module.id}-leg-${index + 1}`,
+        name: leg.name,
+        moduleId: module.id,
+        position: { x: corner.x, y: 0, z: corner.z },
+        size: { x: RAIL_T, y: leg.height, z: RAIL_T },
+      }),
+    ),
+    ...[RAIL_T, MODULE_SIZE.width - RAIL_T - hanger.depth].map(
+      (x, index): FrameHardwarePlacement => ({
+        id: `${module.id}-joist-hanger-${index + 1}`,
+        name: hanger.name,
+        moduleId: module.id,
+        position: { x, y: RAIL_BOTTOM, z: hangerZ },
+        size: { x: hanger.depth, y: hanger.innerWidth, z: hanger.width },
+      }),
+    ),
+  ];
+
+  if (module.openSide === "left") {
+    return items;
+  }
+  return items.map((item) => ({
+    ...item,
+    position: mirrorX(item.position, item.size.x),
   }));
 }
 
@@ -152,6 +199,8 @@ export function moduleStorageSlots(module: FrameModule): StorageSlot[] {
 }
 
 export const FRAME_PARTS: readonly Part[] = FRAME_MODULES.flatMap(moduleParts);
+export const FRAME_HARDWARE_PLACEMENTS: readonly FrameHardwarePlacement[] =
+  FRAME_MODULES.flatMap(moduleHardware);
 export const STORAGE_SLOTS: readonly StorageSlot[] = FRAME_MODULES.flatMap(moduleStorageSlots);
 
 function mirrorX(position: Vec3, sizeX: number): Vec3 {
@@ -159,8 +208,8 @@ function mirrorX(position: Vec3, sizeX: number): Vec3 {
 }
 
 function minSlatCount(span: number): number {
-  for (let count = 2; count * B <= span; count++) {
-    if ((span - count * B) / (count - 1) <= SLAT_MAX_GAP) {
+  for (let count = 2; count * SLAT_W <= span; count++) {
+    if ((span - count * SLAT_W) / (count - 1) <= SLAT_MAX_GAP) {
       return count;
     }
   }

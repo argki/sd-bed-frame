@@ -50,7 +50,7 @@ function moduleJoints(module: FrameModule): ScrewJoint[] {
     part.placements.map((placement, index) => ({
       part,
       index,
-      box: placementBox(part.length, placement),
+      box: placementBox(part.length, placement, part.section),
     })),
   );
   const posts = placed.filter((item) => item.part.name === "柱");

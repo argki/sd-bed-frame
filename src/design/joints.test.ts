@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { FASTENER, LUMBER } from "./constants";
-import { FRAME_MODULES, MODULE_SIZE, moduleParts, SLAT_COUNT } from "./frame";
+import { FRAME_MODULES, MODULE_SIZE, moduleParts } from "./frame";
 import { placementBox } from "./geometry";
-import {
-  FRAME_JOINTS,
-  SCREWS_PER_RAIL_END,
-  SCREWS_PER_SLAT_SUPPORT,
-  type ScrewJoint,
-} from "./joints";
+import { FRAME_JOINTS, type ScrewJoint } from "./joints";
 import type { Axis, Box3, Vec3 } from "./types";
 
 const fasteners = [FASTENER.rail, FASTENER.slat];
@@ -26,7 +21,7 @@ function placedBox(moduleId: string, partId: string, index: number): Box3 {
   if (!part || !placement) {
     throw new Error(`部材 ${partId} の ${index} 本目がない`);
   }
-  return placementBox(part.length, placement);
+  return placementBox(part.length, placement, part.section);
 }
 
 function axisOf(point: Vec3, axis: Axis): number {
@@ -34,9 +29,8 @@ function axisOf(point: Vec3, axis: Axis): number {
 }
 
 describe("ネジ止め", () => {
-  it("全部材の接合を1か所に定義する", () => {
-    expect(FRAME_JOINTS.length).toBeGreaterThan(0);
-    expect(new Set(FRAME_JOINTS.map((joint) => joint.id)).size).toBe(FRAME_JOINTS.length);
+  it("柱と下横桟がないので、そのネジ止めは生成されない", () => {
+    expect(FRAME_JOINTS).toHaveLength(0);
   });
 
   it("頭側と足側で、モジュール内の留め位置は同じ", () => {
@@ -82,59 +76,6 @@ describe("ネジ止め", () => {
 
 describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) => {
   const joints = jointsOf(module.id);
-  const parts = moduleParts(module);
-  const upper = parts.find((part) => part.name === "上横桟");
-  const lower = parts.find((part) => part.name === "下横桟");
-  const posts = parts.find((part) => part.name === "柱");
-  const slats = parts.find((part) => part.name === "天板のすのこ");
-
-  it("上横桟3本と下横桟を、柱の外側の面から留める", () => {
-    expect(upper).toBeDefined();
-    expect(lower).toBeDefined();
-    expect(posts).toBeDefined();
-    if (!upper || !lower || !posts) {
-      return;
-    }
-
-    const upperJoints = joints.filter(
-      (joint) => joint.intoPartId === upper.id && joint.fastenerId === FASTENER.rail.id,
-    );
-    for (let index = 0; index < upper.placements.length; index++) {
-      expect(upperJoints.filter((joint) => joint.intoPlacementIndex === index)).toHaveLength(2);
-    }
-
-    const lowerJoints = joints.filter(
-      (joint) => joint.intoPartId === lower.id && joint.fastenerId === FASTENER.rail.id,
-    );
-    for (let index = 0; index < lower.placements.length; index++) {
-      expect(lowerJoints.filter((joint) => joint.intoPlacementIndex === index)).toHaveLength(2);
-    }
-
-    for (const joint of [...upperJoints, ...lowerJoints]) {
-      expect(joint.fromPartId).toBe(posts.id);
-      expect(joint.face.axis).toBe("x");
-      expect(joint.positions).toHaveLength(SCREWS_PER_RAIL_END);
-    }
-  });
-
-  it("すのこは、接している柱と上横桟へ上面から1本ずつ打つ", () => {
-    expect(slats).toBeDefined();
-    if (!slats) {
-      return;
-    }
-    const slatJoints = joints.filter((joint) => joint.fromPartId === slats.id);
-    expect(slatJoints).toHaveLength(2 * 3 + (SLAT_COUNT - 2) * 3);
-    for (const joint of slatJoints) {
-      expect(joint.fastenerId).toBe(FASTENER.slat.id);
-      expect(joint.face).toEqual({ axis: "y", side: "max" });
-      expect(joint.positions).toHaveLength(SCREWS_PER_SLAT_SUPPORT);
-      expect(joint.intoPartId === posts?.id || joint.intoPartId === upper?.id).toBe(true);
-    }
-    expect(slatJoints.filter((joint) => joint.fromPlacementIndex === 0)).toHaveLength(3);
-    expect(slatJoints.filter((joint) => joint.fromPlacementIndex === SLAT_COUNT - 1)).toHaveLength(
-      3,
-    );
-  });
 
   it("ネジは打ち込む面にあり、相手の部材の木口へ入る", () => {
     for (const joint of joints) {

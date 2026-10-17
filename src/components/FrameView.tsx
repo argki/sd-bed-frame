@@ -20,9 +20,7 @@ import { type Axis, type Part, placedSize, type Vec3 } from "../design/types";
 
 const PART_COLORS: Readonly<Record<string, string>> = {
   天板のすのこ: "#e8c27a",
-  柱: "#c4843c",
-  上横桟: "#a16207",
-  下横桟: "#854d0e",
+  上枠: "#a16207",
 };
 
 const BOX_COLOR = "#d6b48c";
@@ -573,7 +571,7 @@ function screwMarkers(): ScrewMarker[] {
     if (!origin || !part || !placement || !fastener) {
       throw new Error(`接合 ${joint.id} の部材が見つからない`);
     }
-    const size = placedSize(part.length, placement);
+    const size = placedSize(part.length, placement, part.section);
     const partCenter = toVec(center(origin, placement.position, size));
     return joint.positions.map(
       (point, index): ScrewMarker => ({
@@ -611,7 +609,7 @@ function moduleBoltMarkers(
     if (!origin || !part || !placement || !product) {
       throw new Error(`モジュール連結 ${joint.id} の部材が見つからない`);
     }
-    const size = placedSize(part.length, placement);
+    const size = placedSize(part.length, placement, part.section);
     const partCenter = toVec(center(origin, placement.position, size));
     const entry = origin[joint.axis] + placement.position[joint.axis];
     return joint.positions.map(
@@ -645,7 +643,7 @@ function placementsOf(part: Part, origins: ReadonlyMap<string, Vec3>, color: str
     if (!origin) {
       throw new Error(`モジュール ${part.moduleId} が見つからない`);
     }
-    const size = placedSize(part.length, placement);
+    const size = placedSize(part.length, placement, part.section);
     const label = PIECE_LABELS.get(pieceId(part.id, index));
     if (!label) {
       throw new Error(`部材 ${part.id} の${index + 1}本目の連番が見つからない`);

@@ -65,8 +65,8 @@ describe("createCutPlan", () => {
     const plan = createCutPlan(FRAME_PARTS);
     const labels = plan.boards.map((board) => board.pieces.map((piece) => pieceLabel(piece)));
 
-    expect(labels[0]).toEqual(["天板のすのこ 1", "天板のすのこ 2", "天板のすのこ 3", "下横桟 1"]);
-    expect(labels[1]).toEqual(["天板のすのこ 4", "天板のすのこ 5", "天板のすのこ 6", "下横桟 2"]);
+    expect(labels[0]).toEqual(["上枠 1", "上枠 2", "天板のすのこ 1", "上枠 3"]);
+    expect(labels[1]).toEqual(["天板のすのこ 2", "天板のすのこ 3", "天板のすのこ 4", "上枠 4"]);
 
     const byName = new Map<string, number[]>();
     for (const piece of plan.boards.flatMap((board) => board.pieces)) {
@@ -82,9 +82,9 @@ describe("createCutPlan", () => {
   it("フレームの木取り本数とカット回数を求める", () => {
     const plan = createCutPlan(FRAME_PARTS);
 
-    expect(plan.boardCount).toBe(11);
-    expect(plan.pieceCount).toBe(64);
-    expect(plan.cutCount).toBe(64);
+    expect(plan.boardCount).toBe(10);
+    expect(plan.pieceCount).toBe(40);
+    expect(plan.cutCount).toBe(40);
   });
 
   it("材料費、カット代、合計を求める", () => {

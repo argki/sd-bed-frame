@@ -70,7 +70,7 @@ function modulePosts(module: FrameModule): Post[] {
       return [];
     }
     return part.placements.map((placement, placementIndex) => {
-      const local = placementBox(part.length, placement);
+      const local = placementBox(part.length, placement, part.section);
       return {
         moduleId: module.id,
         partId: part.id,

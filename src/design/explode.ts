@@ -8,7 +8,7 @@ export const MODULE_EXPLODE_DISTANCE = 320;
  * 部材はモジュール中心から広がるので、境の部材は隣のモジュール側へ戻る。
  * 戻っても重ならないよう、モジュール分解より長く離す。
  */
-export const PART_EXPLODE_DISTANCE = 440;
+export const PART_EXPLODE_DISTANCE = 480;
 
 /** 分解しきったとき、部材をモジュール中心から離す倍率。 */
 export const PART_EXPLODE_SCALE = 0.7;

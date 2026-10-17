@@ -19,7 +19,7 @@ describe("モジュールの連結", () => {
 
   it("面で接している柱の組を、すべて六角ボルトで留める", () => {
     expect(MODULE_BOLT.name).not.toBe(FASTENER.rail.name);
-    expect(touches.length).toBeGreaterThan(0);
+    expect(touches).toHaveLength(0);
     expect(MODULE_JOINTS).toHaveLength(touches.length);
 
     for (const touch of touches) {
@@ -47,17 +47,8 @@ describe("モジュールの連結", () => {
     }
   });
 
-  it("各モジュールは、隣り合うモジュールとだけ連結する", () => {
-    const partners = new Map<string, Set<string>>();
-    for (const joint of MODULE_JOINTS) {
-      const [a, b] = joint.ends;
-      partners.get(a.moduleId)?.add(b.moduleId) ?? partners.set(a.moduleId, new Set([b.moduleId]));
-      partners.get(b.moduleId)?.add(a.moduleId) ?? partners.set(b.moduleId, new Set([a.moduleId]));
-    }
-    expect(partners.get("head-left")).toEqual(new Set(["head-right", "foot-left"]));
-    expect(partners.get("head-right")).toEqual(new Set(["head-left", "foot-right"]));
-    expect(partners.get("foot-left")).toEqual(new Set(["head-left", "foot-right"]));
-    expect(partners.get("foot-right")).toEqual(new Set(["head-right", "foot-left"]));
+  it("柱がないので、隣のモジュールとのボルトは生成されない", () => {
+    expect(MODULE_JOINTS).toHaveLength(0);
   });
 
   it("モジュールの中のコーススレッドは、モジュールをまたがない", () => {

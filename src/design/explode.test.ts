@@ -40,32 +40,35 @@ describe("explodedPosition", () => {
     );
   });
 
-  it("部材分解では、境で接していた柱とすのこが重ならない", () => {
+  it("部材分解では、左右の境で接していた上枠とすのこが重ならない", () => {
     const boxes = explodedPartBoxes();
-    const pairs = [
-      ["柱 22", "柱 16"],
-      ["柱 23", "柱 17"],
-      ["柱 10", "柱 4"],
-      ["柱 18", "柱 24"],
-      ["天板のすのこ 10", "天板のすのこ 5"],
-      ["天板のすのこ 20", "天板のすのこ 15"],
-    ];
+    const seam = MODULE_SIZE.width;
+    const pairs = boxes.flatMap((left, index) =>
+      boxes.slice(index + 1).flatMap((right) => {
+        if (left.moduleId === right.moduleId) {
+          return [];
+        }
+        const touchesSeam =
+          (left.assembled.max.x === seam && right.assembled.min.x === seam) ||
+          (right.assembled.max.x === seam && left.assembled.min.x === seam);
+        return touchesSeam ? [[left, right] as const] : [];
+      }),
+    );
 
-    for (const [leftLabel, rightLabel] of pairs) {
-      const left = boxes.find((box) => box.label === leftLabel);
-      const right = boxes.find((box) => box.label === rightLabel);
-      expect(left, leftLabel).toBeDefined();
-      expect(right, rightLabel).toBeDefined();
-      if (!left || !right) {
-        continue;
-      }
-      expect(intersects(left.box, right.box), `${leftLabel} と ${rightLabel}`).toBe(false);
+    expect(pairs.length).toBeGreaterThan(0);
+    for (const [left, right] of pairs) {
+      expect(intersects(left.box, right.box), `${left.label} と ${right.label}`).toBe(false);
       expect(separation(left.box, right.box)).toBeGreaterThanOrEqual(LUMBER.width);
     }
   });
 });
 
-function explodedPartBoxes(): { label: string; moduleId: string; box: Box3 }[] {
+function explodedPartBoxes(): {
+  label: string;
+  moduleId: string;
+  box: Box3;
+  assembled: Box3;
+}[] {
   const bedCenter = { x: MATTRESS.width / 2, y: FRAME_HEIGHT / 2, z: MATTRESS.length / 2 };
   const centers = new Map(
     FRAME_MODULES.map((module) => [
@@ -89,16 +92,29 @@ function explodedPartBoxes(): { label: string; moduleId: string; box: Box3 }[] {
       if (!part || !placement || !origin || !moduleCenter) {
         throw new Error(`${pieceLabel(piece)} の位置が見つからない`);
       }
-      const size = placedSize(part.length, placement);
+      const size = placedSize(part.length, placement, part.section);
       const center = {
         x: origin.x + placement.position.x + size.x / 2,
         y: origin.y + placement.position.y + size.y / 2,
         z: origin.z + placement.position.z + size.z / 2,
       };
       const exploded = explodedPosition(center, moduleCenter, bedCenter, 1, "part");
+      const assembled = {
+        min: {
+          x: center.x - size.x / 2,
+          y: center.y - size.y / 2,
+          z: center.z - size.z / 2,
+        },
+        max: {
+          x: center.x + size.x / 2,
+          y: center.y + size.y / 2,
+          z: center.z + size.z / 2,
+        },
+      };
       return {
         label: pieceLabel(piece),
         moduleId: part.moduleId,
+        assembled,
         box: {
           min: {
             x: exploded.x - size.x / 2,

@@ -6,9 +6,7 @@ const number = new Intl.NumberFormat("ja-JP");
 
 const PART_COLORS: Readonly<Record<string, string>> = {
   天板のすのこ: "#fbbf24",
-  柱: "#fb923c",
-  上横桟: "#d97706",
-  下横桟: "#a16207",
+  上枠: "#d97706",
 };
 
 export function CutPlanSection() {

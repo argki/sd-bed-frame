@@ -1,4 +1,4 @@
-import { type Box3, type PartPlacement, placedSize, type Vec3 } from "./types";
+import { type Box3, type LumberSection, type PartPlacement, placedSize, type Vec3 } from "./types";
 
 export function boxFrom(position: Vec3, size: Vec3): Box3 {
   return {
@@ -7,8 +7,12 @@ export function boxFrom(position: Vec3, size: Vec3): Box3 {
   };
 }
 
-export function placementBox(length: number, placement: PartPlacement): Box3 {
-  return boxFrom(placement.position, placedSize(length, placement));
+export function placementBox(
+  length: number,
+  placement: PartPlacement,
+  section?: LumberSection,
+): Box3 {
+  return boxFrom(placement.position, placedSize(length, placement, section));
 }
 
 /** 2つの直方体が体積を持って重なるか。面で接するだけなら重ならないとみなす。 */
