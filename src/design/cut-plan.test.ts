@@ -65,7 +65,7 @@ describe("createCutPlan", () => {
     const plan = createCutPlan(FRAME_PARTS);
     const labels = plan.boards.map((board) => board.pieces.map((piece) => pieceLabel(piece)));
 
-    expect(labels[0]).toEqual(["天板のすのこ 1", "天板のすのこ 2", "天板のすのこ 3"]);
+    expect(labels[0]).toEqual(["天板のすのこ 1", "天板のすのこ 2", "天板のすのこ 3", "パネル桟 1"]);
     expect(
       plan.stocks.find((stock) => stock.id === "2x4")?.boards[0]?.pieces.map(pieceLabel),
     ).toEqual(["上枠 1", "上枠 2", "上枠 3", "上枠 4", "受け材 1", "受け材 2"]);
@@ -89,8 +89,8 @@ describe("createCutPlan", () => {
       ["2x4", 5],
     ]);
     expect(plan.boardCount).toBe(12);
-    expect(plan.pieceCount).toBe(57);
-    expect(plan.cutCount).toBe(57);
+    expect(plan.pieceCount).toBe(65);
+    expect(plan.cutCount).toBe(65);
   });
 
   it("すのこは 1x4、上枠は 2x4 の材料費で求める", () => {
@@ -100,7 +100,7 @@ describe("createCutPlan", () => {
 
     expect(
       slatStock?.boards.every((board) =>
-        board.pieces.every((piece) => piece.name === "天板のすのこ"),
+        board.pieces.every((piece) => piece.name === "天板のすのこ" || piece.name === "パネル桟"),
       ),
     ).toBe(true);
     expect(

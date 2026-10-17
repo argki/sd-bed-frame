@@ -124,7 +124,7 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
     }
   });
 
-  it("すのこは、接している上枠へ上面から1本ずつ打つ", () => {
+  it("すのこは、パネル桟へ上面から1本ずつ打ち、上枠へは打たない", () => {
     expect(slats).toBeDefined();
     if (!slats) {
       return;
@@ -132,7 +132,8 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
     const slatBoxes = slats.placements.map((placement) =>
       placementBox(slats.length, placement, slats.section),
     );
-    const railBoxes = rails.flatMap((part) =>
+    const battens = parts.filter((part) => part.name === "パネル桟");
+    const battenBoxes = battens.flatMap((part) =>
       part.placements.map((placement, index) => ({
         partId: part.id,
         index,
@@ -140,29 +141,32 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
       })),
     );
     const contacts = slatBoxes.flatMap((slat, slatIndex) =>
-      railBoxes
+      battenBoxes
         .filter(
-          (rail) =>
-            slat.min.y === rail.box.max.y &&
-            overlap(slat, rail.box, "x") > 0 &&
-            overlap(slat, rail.box, "z") > 0,
+          (batten) =>
+            slat.min.y === batten.box.max.y &&
+            overlap(slat, batten.box, "x") > 0 &&
+            overlap(slat, batten.box, "z") > 0,
         )
-        .map((rail) => ({ slatIndex, rail })),
+        .map((batten) => ({ slatIndex, batten })),
     );
-    expect(contacts.length).toBeGreaterThan(0);
+    expect(contacts).toHaveLength(slatBoxes.length * battenBoxes.length);
     for (const contact of contacts) {
       const matched = joints.filter(
         (joint) =>
           joint.fromPartId === slats.id &&
           joint.fromPlacementIndex === contact.slatIndex &&
-          joint.intoPartId === contact.rail.partId &&
-          joint.intoPlacementIndex === contact.rail.index,
+          joint.intoPartId === contact.batten.partId &&
+          joint.intoPlacementIndex === contact.batten.index,
       );
       expect(matched).toHaveLength(1);
       expect(matched[0]?.fastenerId).toBe(FASTENER.slat.id);
       expect(matched[0]?.positions).toHaveLength(SCREWS_PER_SLAT_SUPPORT);
       expect(matched[0]?.face).toEqual({ axis: "y", side: "max" });
     }
+    expect(
+      joints.some((joint) => joint.fromPartId === slats.id && joint.intoPartId.includes("rail")),
+    ).toBe(false);
   });
 
   it("脚と受け材は、長辺の上枠に接する上面から2本留める", () => {
@@ -174,7 +178,11 @@ describe.each(FRAME_MODULES)("モジュール $name のネジ止め", (module) =
           (joint) => joint.fromPartId === part.id && joint.fromPlacementIndex === index,
         );
         expect(matched).toHaveLength(1);
-        expect(matched[0]?.fastenerId).toBe(FASTENER.slat.id);
+        expect(matched[0]?.fastenerId).toBe(
+          part.name === "脚" && module.id === "head-left" && index < 2
+            ? FASTENER.rail.id
+            : FASTENER.slat.id,
+        );
         expect(matched[0]?.positions).toHaveLength(
           part.name === "脚" ? SCREWS_PER_LEG : SCREWS_PER_HANGER_SEAT,
         );

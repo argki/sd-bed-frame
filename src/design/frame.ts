@@ -6,6 +6,7 @@ import {
   STORAGE_BOX,
   STORAGE_CLEARANCE,
 } from "./constants";
+import { PANEL_BATTEN } from "./panel";
 import { WOOD_SUPPORT } from "./support";
 import { type FrameModule, type Part, placedSize, type Vec3 } from "./types";
 
@@ -140,6 +141,22 @@ export function moduleParts(module: FrameModule): Part[] {
         position: { x, y: RAIL_BOTTOM - WOOD_SUPPORT.seat.length, z: DIVIDER_Z },
         lengthAxis: "y",
         widthAxis: "x",
+      })),
+    },
+    {
+      id: `${module.id}-panel-batten`,
+      name: PANEL_BATTEN.name,
+      moduleId: module.id,
+      length: CROSS_RAIL_LENGTH,
+      section: LUMBER,
+      placements: BAYS.map((bay) => ({
+        position: {
+          x: RAIL_T,
+          y: RAIL_BOTTOM + RAIL_W - LUMBER.width,
+          z: (bay.minZ + bay.maxZ - LUMBER.thickness) / 2,
+        },
+        lengthAxis: "x" as const,
+        widthAxis: "y" as const,
       })),
     },
   ];

@@ -44,7 +44,7 @@ describe("summarizeParts", () => {
 
 describe("表示用の部材集計", () => {
   it("切り出す全部材を集計する", () => {
-    expect(PART_SUMMARY.reduce((sum, row) => sum + row.quantity, 0)).toBe(57);
+    expect(PART_SUMMARY.reduce((sum, row) => sum + row.quantity, 0)).toBe(65);
   });
 
   it("購入する12f材の小計が単価と本数に一致する", () => {

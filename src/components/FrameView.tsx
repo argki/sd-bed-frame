@@ -28,6 +28,7 @@ const PART_COLORS: Readonly<Record<string, string>> = {
   上枠: "#a16207",
   脚: "#7c4a12",
   受け材: "#c4841d",
+  パネル桟: "#d4a017",
 };
 
 const HARDWARE_COLORS: Readonly<Record<string, string>> = {

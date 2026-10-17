@@ -16,12 +16,11 @@ describe("木の脚と受け材", () => {
     expect(PURCHASE_ITEMS.some((item) => item.name === FRAME_HARDWARE.joistHanger.name)).toBe(
       false,
     );
-    expect(PROJECT_COST.frameHardwareCost).toBe(0);
     expect(PROJECT_COST).toMatchObject({
       lumberCost: 10924,
-      cutCost: 2850,
-      fastenerCost: 4246,
-      totalCost: 18020,
+      cutCost: 3250,
+      fastenerCost: 3919,
+      totalCost: 18093,
     });
     expect(PROJECT_COST.totalCost).toBeLessThanOrEqual(PRECHANGE_TOTAL);
     expect(PROJECT_COST.totalCost).toBe(
@@ -37,6 +36,8 @@ describe("木の脚と受け材", () => {
       ["1x4", 7],
       ["2x4", 5],
     ]);
-    expect(FRAME_CUT_PLAN.pieceCount).toBe(WOOD_SUPPORT.leg.count + WOOD_SUPPORT.seat.count + 40);
+    expect(FRAME_CUT_PLAN.pieceCount).toBe(
+      WOOD_SUPPORT.leg.count + WOOD_SUPPORT.seat.count + 40 + 8,
+    );
   });
 });

@@ -93,12 +93,14 @@ describe.each(FRAME_MODULES)("モジュール $name", (module) => {
     expect(names).not.toContain("下横桟");
     expect(parts.filter((part) => part.name === "上枠")).toHaveLength(5);
     expect(parts.filter((part) => part.name === "天板のすのこ")).toHaveLength(5);
+    expect(parts.filter((part) => part.name === "パネル桟")).toHaveLength(2);
     expect(parts.filter((part) => part.name === WOOD_SUPPORT.seat.name)).toHaveLength(2);
   });
 
-  it("すのこは1x4、上枠と脚と受け材は2x4である", () => {
+  it("すのこは1x4、パネル桟も1x4、上枠と脚と受け材は2x4である", () => {
     for (const part of moduleParts(module)) {
-      expect(part.section).toEqual(part.name === "天板のすのこ" ? LUMBER : LUMBER_2X4);
+      const slatLike = part.name === "天板のすのこ" || part.name === "パネル桟";
+      expect(part.section).toEqual(slatLike ? LUMBER : LUMBER_2X4);
     }
   });
 
@@ -214,6 +216,7 @@ describe("フレームの高さ", () => {
         0,
       );
     expect(count("上枠") + count("天板のすのこ")).toBe(40);
+    expect(count("パネル桟")).toBe(8);
     expect(count(WOOD_SUPPORT.leg.name)).toBe(WOOD_SUPPORT.leg.count);
     expect(count(WOOD_SUPPORT.seat.name)).toBe(WOOD_SUPPORT.seat.count);
     const names = FRAME_PARTS.map((part) => part.name);

@@ -1,15 +1,21 @@
 import { FASTENER } from "./constants";
 import { FRAME_MODULES, MODULE_SIZE, moduleParts } from "./frame";
 import { placementBox } from "./geometry";
+import { PANEL_BATTEN } from "./panel";
 import { WOOD_SUPPORT } from "./support";
 import type { Axis, Box3, FrameModule, Part, Vec3 } from "./types";
 
 /** 幅方向の上枠の木口1か所に打つ本数。 */
 export const SCREWS_PER_RAIL_END = 2;
-/** すのこと、その下で接している上枠との接合1か所に打つ本数。 */
+/** すのこと、その下のパネル桟との接合1か所に打つ本数。 */
 export const SCREWS_PER_SLAT_SUPPORT = 1;
 /** 脚1本を上枠へ留める本数。1本だと、そのネジを軸に脚が回る。 */
 export const SCREWS_PER_LEG = 2;
+/**
+ * 頭側・左の脚のうち、半ねじで留める本数。
+ * 全ねじが70本を超えると袋がもう1つ要る。120mmは脚の長さの中に収まる。
+ */
+const LEGS_USING_RAIL_PACK = 2;
 /** 受け材1個を、長辺の上枠へ留める本数。1本だと、そのネジを軸に回る。 */
 export const SCREWS_PER_HANGER_SEAT = 2;
 
@@ -66,6 +72,7 @@ function moduleJoints(module: FrameModule): ScrewJoint[] {
   );
   const rails = placed.filter((item) => item.part.name === "上枠");
   const slats = placed.filter((item) => item.part.name === "天板のすのこ");
+  const battens = placed.filter((item) => item.part.name === PANEL_BATTEN.name);
   const supports = placed.filter(
     (item) => item.part.name === WOOD_SUPPORT.leg.name || item.part.name === WOOD_SUPPORT.seat.name,
   );
@@ -97,7 +104,7 @@ function moduleJoints(module: FrameModule): ScrewJoint[] {
       undefined,
       RAIL_END_BAND,
     ),
-    ...jointsWhere(module, slats, rails, "y", SCREWS_PER_SLAT_SUPPORT, FASTENER.slat, "min"),
+    ...jointsWhere(module, slats, battens, "y", SCREWS_PER_SLAT_SUPPORT, FASTENER.slat, "min"),
     ...supports.flatMap((support) => supportJoints(module, sideRails, support)),
   ];
 }
@@ -162,9 +169,10 @@ function supportJoints(
     if (rail.box.min.y !== support.box.max.y || overlapX <= 0 || overlapZ <= 0) {
       continue;
     }
-    if (FASTENER.slat.length >= support.box.max.y - support.box.min.y) {
+    const fastener = legUsesRailPack(module, support) ? FASTENER.rail : FASTENER.slat;
+    if (fastener.length >= support.box.max.y - support.box.min.y) {
       throw new Error(
-        `ネジ ${FASTENER.slat.id} の長さ ${FASTENER.slat.length}mm では、脚または受け材を上面から貫いてしまう`,
+        `ネジ ${fastener.id} の長さ ${fastener.length}mm では、脚または受け材を上面から貫いてしまう`,
       );
     }
     const face: JointFace = { axis: "y", side: "max" };
@@ -177,10 +185,18 @@ function supportJoints(
       intoPlacementIndex: rail.index,
       face,
       positions: seatPositions(rail.box, support.box, screwCount),
-      fastenerId: FASTENER.slat.id,
+      fastenerId: fastener.id,
     });
   }
   return joints;
+}
+
+function legUsesRailPack(module: FrameModule, support: Placed): boolean {
+  return (
+    support.part.name === WOOD_SUPPORT.leg.name &&
+    module.id === "head-left" &&
+    support.index < LEGS_USING_RAIL_PACK
+  );
 }
 
 /** a の面が b の面に接し、その面内で面積があるとき、a 側の面と重なりを返す。 */
