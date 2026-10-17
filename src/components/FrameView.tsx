@@ -59,6 +59,10 @@ const PIECE_LABELS = new Map(
   ),
 );
 
+function perJoint(screwsPerJoint: number | null): string {
+  return screwsPerJoint === null ? "" : `1か所${number.format(screwsPerJoint)}本、`;
+}
+
 export function FrameView() {
   const [showBoxes, setShowBoxes] = useState(true);
   const [showScrews, setShowScrews] = useState(true);
@@ -204,7 +208,7 @@ export function FrameView() {
               style={{ backgroundColor: SCREW_COLORS[fastener.id] ?? "#292524" }}
             />
             <span>
-              {`${fastener.name} ${fastener.thread} ${number.format(fastener.diameter)}×${number.format(fastener.length)}。${fastener.usage}。1か所${number.format(fastener.screwsPerJoint)}本、使用${number.format(fastener.used)}本。`}
+              {`${fastener.name} ${fastener.thread} ${number.format(fastener.diameter)}×${number.format(fastener.length)}。${fastener.usage}。${perJoint(fastener.screwsPerJoint)}使用${number.format(fastener.used)}本。`}
             </span>
           </li>
         ))}

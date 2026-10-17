@@ -48,7 +48,8 @@ export const KERF = 3;
 
 /**
  * 部材を留めるコーススレッド。価格はビバホームオンラインの税込。
- * rail は柱の幅を貫いて横桟の木口へ入れる。slat はすのこの厚みを貫いて下の部材の木口へ入れる。
+ * rail は長辺の上枠を貫いて、幅方向の上枠の木口へ入れる。
+ * slat は、すのこの厚みを貫いて上枠へ入れる。脚と根太受けは、同じネジを上枠の下面から打つ。
  * 呼び径、長さ、入数は、掲載されていた商品に合わせている。
  */
 export const FASTENER = {
@@ -60,7 +61,7 @@ export const FASTENER = {
     length: 120,
     packSize: 15,
     packPrice: 327,
-    usage: "柱の外側の面から横桟の木口へ打つ",
+    usage: "長辺の上枠の外側から、幅方向の上枠の木口へ打つ",
   },
   slat: {
     id: "slat",
@@ -70,7 +71,7 @@ export const FASTENER = {
     length: 45,
     packSize: 70,
     packPrice: 327,
-    usage: "すのこの上面から、接している柱と上横桟の木口へ打つ",
+    usage: "すのこは上面から上枠へ、脚と根太受けは上枠の下面から打つ",
   },
 } as const;
 

@@ -66,8 +66,10 @@ describe("表示用の部材集計", () => {
       expect(fastener.subtotal).toBe(fastener.packCount * fastener.packPrice);
     }
 
-    expect(FASTENER_SUMMARY.find((item) => item.id === FASTENER.rail.id)?.screwsPerJoint).toBe(0);
-    expect(FASTENER_SUMMARY.find((item) => item.id === FASTENER.slat.id)?.screwsPerJoint).toBe(0);
+    expect(FASTENER_SUMMARY.find((item) => item.id === FASTENER.rail.id)?.screwsPerJoint).toBe(2);
+    expect(FASTENER_SUMMARY.find((item) => item.id === FASTENER.slat.id)?.screwsPerJoint).toBe(
+      null,
+    );
   });
 
   it("合計に木材、コーススレッド、モジュールの連結金物、カット代を含める", () => {

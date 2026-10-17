@@ -27,7 +27,8 @@ export type FastenerSummary = {
   readonly diameter: number;
   readonly length: number;
   readonly usage: string;
-  readonly screwsPerJoint: number;
+  /** 同じネジの接合がすべて同じ本数のとき、その本数。本数が混ざるときは null。 */
+  readonly screwsPerJoint: number | null;
   readonly used: number;
   readonly packSize: number;
   readonly packCount: number;
@@ -200,10 +201,8 @@ function packItem(
 
 function summarizeFastener(fastener: (typeof FASTENER)[keyof typeof FASTENER]): FastenerSummary {
   const joints = FRAME_JOINTS.filter((joint) => joint.fastenerId === fastener.id);
-  const screwsPerJoint = joints[0]?.positions.length ?? 0;
-  if (joints.some((joint) => joint.positions.length !== screwsPerJoint)) {
-    throw new Error(`ネジ ${fastener.id} の1か所あたりの本数がそろっていない`);
-  }
+  const counts = new Set(joints.map((joint) => joint.positions.length));
+  const screwsPerJoint = counts.size === 1 ? ([...counts][0] ?? null) : null;
   const used = joints.reduce((sum, joint) => sum + joint.positions.length, 0);
   const packCount = packsToBuy(used, fastener.packSize);
   return {

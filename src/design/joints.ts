@@ -1,12 +1,22 @@
-import { FASTENER } from "./constants";
-import { FRAME_MODULES, moduleParts } from "./frame";
-import { placementBox } from "./geometry";
+import { FASTENER, FRAME_HARDWARE } from "./constants";
+import { FRAME_MODULES, MODULE_SIZE, moduleHardware, moduleParts } from "./frame";
+import { intersects, placementBox } from "./geometry";
 import type { Axis, Box3, FrameModule, Part, Vec3 } from "./types";
 
-/** 柱と横桟の接合1か所に打つ本数。 */
+/** 幅方向の上枠の木口1か所に打つ本数。 */
 export const SCREWS_PER_RAIL_END = 2;
-/** すのこと、その下で接している部材との接合1か所に打つ本数。 */
+/** すのこと、その下で接している上枠との接合1か所に打つ本数。 */
 export const SCREWS_PER_SLAT_SUPPORT = 1;
+/** 脚1本を上枠へ留める本数。1本だと、そのネジを軸に脚が回る。 */
+export const SCREWS_PER_LEG = 2;
+/** 根太受け1個の範囲で、中央の上枠の下面から打つ本数。 */
+export const SCREWS_PER_HANGER_SEAT = 2;
+
+/**
+ * 木口へ打つネジを、面の下半分に置く。
+ * 上半分は、すのこから下りるネジの先が来る。
+ */
+const RAIL_END_BAND = { start: 0, end: 0.5 } as const;
 
 export type JointFace = {
   readonly axis: Axis;
@@ -25,6 +35,8 @@ export type ScrewJoint = {
   readonly face: JointFace;
   readonly positions: readonly Vec3[];
   readonly fastenerId: string;
+  /** 脚または根太受けを留めるとき、その金物の id。ネジは from の面から from の中へ入る。 */
+  readonly hardwareId?: string;
 };
 
 type Placed = {
@@ -53,14 +65,54 @@ function moduleJoints(module: FrameModule): ScrewJoint[] {
       box: placementBox(part.length, placement, part.section),
     })),
   );
-  const posts = placed.filter((item) => item.part.name === "柱");
-  const rails = placed.filter((item) => item.part.name === "上横桟" || item.part.name === "下横桟");
+  const hardware = moduleHardware(module).map((item) => ({
+    item,
+    box: {
+      min: item.position,
+      max: {
+        x: item.position.x + item.size.x,
+        y: item.position.y + item.size.y,
+        z: item.position.z + item.size.z,
+      },
+    },
+  }));
+  const rails = placed.filter((item) => item.part.name === "上枠");
   const slats = placed.filter((item) => item.part.name === "天板のすのこ");
-  const supports = placed.filter((item) => item.part.name === "柱" || item.part.name === "上横桟");
+  const sideRails = rails.filter((item) => item.part.length === MODULE_SIZE.length);
+  const crossRails = rails.filter((item) => item.part.length !== MODULE_SIZE.length);
+  const hangers = hardware.filter((item) => item.item.name === FRAME_HARDWARE.joistHanger.name);
+  const legs = hardware.filter((item) => item.item.name === FRAME_HARDWARE.leg.name);
+  const centerRails = crossRails.filter((rail) =>
+    hangers.some((hanger) => intersects(rail.box, hanger.box)),
+  );
+  const endRails = crossRails.filter((rail) => !centerRails.includes(rail));
 
   return [
-    ...jointsWhere(module, posts, rails, "x", SCREWS_PER_RAIL_END, FASTENER.rail),
-    ...jointsWhere(module, slats, supports, "y", SCREWS_PER_SLAT_SUPPORT, FASTENER.slat, "min"),
+    ...jointsWhere(
+      module,
+      sideRails,
+      endRails,
+      "x",
+      SCREWS_PER_RAIL_END,
+      FASTENER.rail,
+      undefined,
+      RAIL_END_BAND,
+    ),
+    ...jointsWhere(
+      module,
+      sideRails,
+      centerRails,
+      "x",
+      SCREWS_PER_RAIL_END,
+      FASTENER.rail,
+      undefined,
+      RAIL_END_BAND,
+    ),
+    ...jointsWhere(module, slats, rails, "y", SCREWS_PER_SLAT_SUPPORT, FASTENER.slat, "min"),
+    ...legs.flatMap((leg) => seatJoints(module, sideRails, leg, SCREWS_PER_LEG, "leg")),
+    ...hangers.flatMap((hanger) =>
+      seatJoints(module, centerRails, hanger, SCREWS_PER_HANGER_SEAT, "hanger"),
+    ),
   ];
 }
 
@@ -72,6 +124,7 @@ function jointsWhere(
   screwCount: number,
   fastener: (typeof FASTENER)[keyof typeof FASTENER],
   fromContactSide?: "min" | "max",
+  alongBand: { readonly start: number; readonly end: number } = { start: 0, end: 1 },
 ): ScrewJoint[] {
   const joints: ScrewJoint[] = [];
   for (const source of from) {
@@ -95,10 +148,55 @@ function jointsWhere(
         intoPartId: target.part.id,
         intoPlacementIndex: target.index,
         face,
-        positions: screwPositions(source.box, face, touch, screwCount),
+        positions: screwPositions(source.box, face, touch, screwCount, alongBand),
         fastenerId: fastener.id,
       });
     }
+  }
+  return joints;
+}
+
+/**
+ * 金物に接する面から、上枠の中へネジを入れる。金物の穴位置は未確認なので、接する範囲の内側に置く。
+ * leg は脚の上面が上枠の下面に接するとき。hanger は根太受けが中央の上枠と重なるとき。
+ */
+function seatJoints(
+  module: FrameModule,
+  rails: readonly Placed[],
+  hardware: { item: { id: string }; box: Box3 },
+  screwCount: number,
+  kind: "leg" | "hanger",
+): ScrewJoint[] {
+  const joints: ScrewJoint[] = [];
+  for (const rail of rails) {
+    const meets =
+      kind === "leg" ? rail.box.min.y === hardware.box.max.y : intersects(rail.box, hardware.box);
+    const overlapX =
+      Math.min(rail.box.max.x, hardware.box.max.x) - Math.max(rail.box.min.x, hardware.box.min.x);
+    const overlapZ =
+      Math.min(rail.box.max.z, hardware.box.max.z) - Math.max(rail.box.min.z, hardware.box.min.z);
+    if (!meets || overlapX <= 0 || overlapZ <= 0) {
+      continue;
+    }
+    const height = rail.box.max.y - rail.box.min.y;
+    if (FASTENER.slat.length >= height) {
+      throw new Error(
+        `ネジ ${FASTENER.slat.id} の長さ ${FASTENER.slat.length}mm では、高さ ${height}mm の上枠の下面から打つと上面に出る`,
+      );
+    }
+    const face: JointFace = { axis: "y", side: "min" };
+    joints.push({
+      id: `${module.id}/${rail.part.id}#${rail.index}/${hardware.item.id}`,
+      moduleId: module.id,
+      fromPartId: rail.part.id,
+      fromPlacementIndex: rail.index,
+      intoPartId: rail.part.id,
+      intoPlacementIndex: rail.index,
+      face,
+      positions: seatPositions(rail.box, hardware.box, screwCount),
+      fastenerId: FASTENER.slat.id,
+      hardwareId: hardware.item.id,
+    });
   }
   return joints;
 }
@@ -122,7 +220,13 @@ function touchOn(a: Box3, b: Box3, axis: Axis): Touch | undefined {
   return undefined;
 }
 
-function screwPositions(box: Box3, face: JointFace, touch: Touch, count: number): Vec3[] {
+function screwPositions(
+  box: Box3,
+  face: JointFace,
+  touch: Touch,
+  count: number,
+  alongBand: { readonly start: number; readonly end: number },
+): Vec3[] {
   const uSpan = touch.uMax - touch.uMin;
   const vSpan = touch.vMax - touch.vMin;
   const longAxis = uSpan >= vSpan ? touch.u : touch.v;
@@ -133,13 +237,35 @@ function screwPositions(box: Box3, face: JointFace, touch: Touch, count: number)
   const shortMax = shortAxis === touch.u ? touch.uMax : touch.vMax;
   const faceValue = face.side === "min" ? box.min[face.axis] : box.max[face.axis];
   const shortMid = (shortMin + shortMax) / 2;
+  const bandMin = longMin + (longMax - longMin) * alongBand.start;
+  const bandMax = longMin + (longMax - longMin) * alongBand.end;
 
   return Array.from({ length: count }, (_, i) => {
     const coords: Record<Axis, number> = { x: 0, y: 0, z: 0 };
     coords[face.axis] = faceValue;
-    coords[longAxis] = longMin + (longMax - longMin) * ((i + 1) / (count + 1));
+    coords[longAxis] = bandMin + (bandMax - bandMin) * ((i + 1) / (count + 1));
     coords[shortAxis] = shortMid;
     return { x: coords.x, y: coords.y, z: coords.z };
+  });
+}
+
+function seatPositions(rail: Box3, hardware: Box3, count: number): Vec3[] {
+  const xMin = Math.max(rail.min.x, hardware.min.x);
+  const xMax = Math.min(rail.max.x, hardware.max.x);
+  const zMin = Math.max(rail.min.z, hardware.min.z);
+  const zMax = Math.min(rail.max.z, hardware.max.z);
+  const spanX = xMax - xMin;
+  const spanZ = zMax - zMin;
+  const towardStart = hardware.min.z < MODULE_SIZE.length / 2;
+  const towardLowX = (hardware.min.x + hardware.max.x) / 2 < MODULE_SIZE.width / 2;
+  const z = towardStart ? zMin + spanZ * 0.25 : zMax - spanZ * 0.25;
+  return Array.from({ length: count }, (_, i) => {
+    const along = (i + 1) / (count + 1);
+    return {
+      x: towardLowX ? xMin + spanX * along : xMax - spanX * along,
+      y: rail.min.y,
+      z,
+    };
   });
 }
 
