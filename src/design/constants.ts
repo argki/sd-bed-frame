@@ -106,7 +106,7 @@ export const MODULE_FASTENER = {
     packPrice: 107,
     nutsPerBolt: 1,
     unit: "本",
-    usage: "頭側と足側の、接している柱を厚み方向に通す",
+    usage: "重ねた上枠がこの長さに収まるときに通す",
   },
   acrossWidth: {
     id: "module-stud",
@@ -118,7 +118,7 @@ export const MODULE_FASTENER = {
     packPrice: 195,
     nutsPerBolt: 2,
     unit: "本",
-    usage: "左右の、接している柱を幅方向に通す。285mmを200mmに切る",
+    usage: "接している上枠を厚み方向に通す。285mmを200mmに切る",
   },
   nut: {
     id: "module-nut",

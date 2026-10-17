@@ -599,7 +599,7 @@ function screwMarkers(): ScrewMarker[] {
 
 const moduleBoltProducts = [MODULE_FASTENER.acrossThickness, MODULE_FASTENER.acrossWidth];
 
-/** ボルトは、接している2本のうち軸の小さい側の柱に付け、分解してもその柱と一緒に動く。 */
+/** ボルトは、接している2本のうち軸の小さい側の上枠に付け、分解してもその上枠と一緒に動く。 */
 function moduleBoltMarkers(
   origins: ReadonlyMap<string, Vec3>,
   parts: ReadonlyMap<string, Part>,
