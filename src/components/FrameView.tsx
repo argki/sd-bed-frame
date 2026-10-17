@@ -2,10 +2,11 @@ import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useState } from "react";
 import { CanvasTexture, Matrix4, Quaternion, SRGBColorSpace, Vector3 } from "three";
-import { MATTRESS, MODULE_FASTENER } from "../design/constants";
+import { FRAME_HARDWARE, MATTRESS, MODULE_FASTENER } from "../design/constants";
 import { FRAME_CUT_PLAN, pieceId, pieceLabel } from "../design/cut-plan";
 import { type ExplodeMode, explodedPosition } from "../design/explode";
 import {
+  FRAME_HARDWARE_PLACEMENTS,
   FRAME_HEIGHT,
   FRAME_MODULES,
   FRAME_PARTS,
@@ -14,13 +15,22 @@ import {
   type StorageSlot,
 } from "../design/frame";
 import { FRAME_JOINTS } from "../design/joints";
-import { FASTENER_SUMMARY, MODULE_HARDWARE_SUMMARY } from "../design/materials";
+import {
+  FASTENER_SUMMARY,
+  FRAME_HARDWARE_SUMMARY,
+  MODULE_HARDWARE_SUMMARY,
+} from "../design/materials";
 import { MODULE_JOINTS } from "../design/module-joints";
 import { type Axis, type Part, placedSize, type Vec3 } from "../design/types";
 
 const PART_COLORS: Readonly<Record<string, string>> = {
   天板のすのこ: "#e8c27a",
   上枠: "#a16207",
+};
+
+const HARDWARE_COLORS: Readonly<Record<string, string>> = {
+  [FRAME_HARDWARE.leg.id]: "#27272a",
+  [FRAME_HARDWARE.joistHanger.id]: "#d4d4d8",
 };
 
 const BOX_COLOR = "#d6b48c";
@@ -49,6 +59,7 @@ type Solid = {
   readonly position: [number, number, number];
   readonly size: [number, number, number];
   readonly color: string;
+  readonly metal: boolean;
 };
 
 const bedCenterVec: Vec3 = { x: bedCenter[0], y: bedCenter[1], z: bedCenter[2] };
@@ -69,6 +80,7 @@ export function FrameView() {
   const [amount, setAmount] = useState(0);
   const [mode, setMode] = useState<ExplodeMode>("module");
   const parts = useMemo(() => partSolids(), []);
+  const hardware = useMemo(() => hardwareSolids(), []);
   const boxes = useMemo(() => boxSolids(), []);
   const screws = useMemo(() => screwMarkers(), []);
   const centers = useMemo(() => moduleCenters(), []);
@@ -168,6 +180,9 @@ export function FrameView() {
             <planeGeometry args={[6000, 6000]} />
             <meshStandardMaterial color="#f5f5f4" />
           </mesh>
+          {hardware.map((solid) => (
+            <Board key={solid.key} solid={solid} position={place(solid, centers, amount, mode)} />
+          ))}
           {parts.map((solid) => (
             <Board key={solid.key} solid={solid} position={place(solid, centers, amount, mode)} />
           ))}
@@ -210,6 +225,15 @@ export function FrameView() {
             <span>
               {`${fastener.name} ${fastener.thread} ${number.format(fastener.diameter)}×${number.format(fastener.length)}。${fastener.usage}。${perJoint(fastener.screwsPerJoint)}使用${number.format(fastener.used)}本。`}
             </span>
+          </li>
+        ))}
+        {FRAME_HARDWARE_SUMMARY.map((item) => (
+          <li key={item.id} className="flex items-start gap-3">
+            <span
+              className="mt-1 size-3 shrink-0 rounded-full"
+              style={{ backgroundColor: HARDWARE_COLORS[item.id] ?? "#27272a" }}
+            />
+            <span>{`${item.name}。${item.usage}。使用${number.format(item.used)}${item.unit}。`}</span>
           </li>
         ))}
         {MODULE_HARDWARE_SUMMARY.filter((item) => SCREW_COLORS[item.id]).map((item) => (
@@ -550,9 +574,47 @@ function Board({ solid, position }: { solid: Solid; position: [number, number, n
   return (
     <mesh position={position} castShadow receiveShadow>
       <boxGeometry args={solid.size} />
-      <meshStandardMaterial color={solid.color} roughness={0.82} metalness={0.02} />
+      <meshStandardMaterial
+        color={solid.color}
+        roughness={solid.metal ? 0.35 : 0.82}
+        metalness={solid.metal ? 0.72 : 0.02}
+      />
     </mesh>
   );
+}
+
+function hardwareSolids(): Solid[] {
+  const origins = new Map(FRAME_MODULES.map((module) => [module.id, module.origin]));
+  const hanger = FRAME_HARDWARE.joistHanger;
+  return FRAME_HARDWARE_PLACEMENTS.map((item) => {
+    const origin = origins.get(item.moduleId);
+    if (!origin) {
+      throw new Error(`モジュール ${item.moduleId} が見つからない`);
+    }
+    const showOutside = item.name === hanger.name;
+    const plate = showOutside ? hanger.thickness : 0;
+    const position = {
+      x: item.position.x,
+      y: item.position.y - plate,
+      z: item.position.z - plate,
+    };
+    const size = {
+      x: item.size.x,
+      y: item.size.y + plate,
+      z: item.size.z + plate * 2,
+    };
+    const product = FRAME_HARDWARE_SUMMARY.find((row) => row.name === item.name);
+    return {
+      key: item.id,
+      moduleId: item.moduleId,
+      name: item.name,
+      label: null,
+      position: center(origin, position, size),
+      size: [size.x, size.y, size.z] as [number, number, number],
+      color: HARDWARE_COLORS[product?.id ?? ""] ?? "#27272a",
+      metal: true,
+    };
+  });
 }
 
 function partSolids(): Solid[] {
@@ -660,6 +722,7 @@ function placementsOf(part: Part, origins: ReadonlyMap<string, Vec3>, color: str
       position: center(origin, placement.position, size),
       size: [size.x, size.y, size.z],
       color,
+      metal: false,
     };
   });
 }
@@ -682,6 +745,7 @@ function solidFrom(
     position: center(origin, slot.position, slot.size),
     size: [slot.size.x, slot.size.y, slot.size.z],
     color,
+    metal: false,
   };
 }
 

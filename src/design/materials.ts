@@ -1,6 +1,6 @@
-import { FASTENER, MODULE_BOLT, MODULE_FASTENER } from "./constants";
+import { FASTENER, FRAME_HARDWARE, MODULE_BOLT, MODULE_FASTENER } from "./constants";
 import { FRAME_CUT_PLAN } from "./cut-plan";
-import { FRAME_PARTS } from "./frame";
+import { FRAME_HARDWARE_PLACEMENTS, FRAME_PARTS } from "./frame";
 import { FRAME_JOINTS } from "./joints";
 import { MODULE_JOINTS } from "./module-joints";
 import type { Part } from "./types";
@@ -58,6 +58,8 @@ const moduleBolts = [MODULE_FASTENER.acrossThickness, MODULE_FASTENER.acrossWidt
 
 export const MODULE_HARDWARE_SUMMARY: readonly HardwareSummary[] = summarizeModuleHardware();
 
+export const FRAME_HARDWARE_SUMMARY: readonly HardwareSummary[] = summarizeFrameHardware();
+
 const lumberItems: readonly PurchaseItem[] = FRAME_CUT_PLAN.stocks.map((stock) => ({
   name: stock.name,
   dimensions: `${stock.thickness} × ${stock.width} × ${stock.stockLength} mm`,
@@ -76,32 +78,46 @@ const fastenerItems: readonly PurchaseItem[] = FASTENER_SUMMARY.map((fastener) =
   subtotal: fastener.subtotal,
 }));
 
-const hardwareItems: readonly PurchaseItem[] = MODULE_HARDWARE_SUMMARY.map((item) => ({
-  name: item.name,
-  dimensions: item.dimensions,
-  quantity: item.packCount,
-  unit: item.unit,
-  unitPrice: item.packPrice,
-  subtotal: item.subtotal,
-}));
+const frameHardwareItems: readonly PurchaseItem[] = FRAME_HARDWARE_SUMMARY.map(purchaseOf);
+
+const boltItems: readonly PurchaseItem[] = MODULE_HARDWARE_SUMMARY.map(purchaseOf);
 
 export const PURCHASE_ITEMS: readonly PurchaseItem[] = [
   ...lumberItems,
+  ...frameHardwareItems,
   ...fastenerItems,
-  ...hardwareItems,
+  ...boltItems,
 ];
 
 const fastenerCost =
   FASTENER_SUMMARY.reduce((sum, fastener) => sum + fastener.subtotal, 0) +
   MODULE_HARDWARE_SUMMARY.reduce((sum, item) => sum + item.subtotal, 0);
 
-/** 木材、コーススレッド、モジュールの連結金物、カット代を合わせた費用。 */
+const frameHardwareCost = FRAME_HARDWARE_SUMMARY.reduce((sum, item) => sum + item.subtotal, 0);
+
+/** 木材、フレームの金物、コーススレッド、モジュールの連結金物、カット代を合わせた費用。 */
 export const PROJECT_COST = {
   lumberCost: FRAME_CUT_PLAN.cost.materialCost,
   fastenerCost,
+  frameHardwareCost,
   cutCost: FRAME_CUT_PLAN.cost.cutCost,
-  totalCost: FRAME_CUT_PLAN.cost.materialCost + fastenerCost + FRAME_CUT_PLAN.cost.cutCost,
+  totalCost:
+    FRAME_CUT_PLAN.cost.materialCost +
+    fastenerCost +
+    frameHardwareCost +
+    FRAME_CUT_PLAN.cost.cutCost,
 } as const;
+
+function purchaseOf(item: HardwareSummary): PurchaseItem {
+  return {
+    name: item.name,
+    dimensions: item.dimensions,
+    quantity: item.packCount,
+    unit: item.unit,
+    unitPrice: item.packPrice,
+    subtotal: item.subtotal,
+  };
+}
 
 export function summarizeParts(parts: readonly Part[]): PartSummary[] {
   const rows = new Map<string, PartSummary>();
@@ -125,6 +141,56 @@ export function packsToBuy(used: number, packSize: number): number {
     throw new Error("使用本数は0以上、入数は1以上の整数にする");
   }
   return Math.ceil(used / packSize);
+}
+
+function summarizeFrameHardware(): HardwareSummary[] {
+  const leg = FRAME_HARDWARE.leg;
+  const hanger = FRAME_HARDWARE.joistHanger;
+  const legUsed = hardwareCount(leg.name);
+  const hangerUsed = hardwareCount(hanger.name);
+  return [
+    hardwareRow(
+      leg,
+      legUsed,
+      `高さ ${leg.height} mm（${leg.packSize}${leg.unit}入、使用${legUsed}${leg.unit}）`,
+    ),
+    hardwareRow(
+      hanger,
+      hangerUsed,
+      `板厚${hanger.thickness} × 幅${hanger.width} × 内寸${hanger.innerWidth} × 奥行き${hanger.depth} mm（${hanger.packSize}${hanger.unit}入、使用${hangerUsed}${hanger.unit}）`,
+    ),
+  ];
+}
+
+function hardwareCount(name: string): number {
+  return FRAME_HARDWARE_PLACEMENTS.filter((item) => item.name === name).length;
+}
+
+function hardwareRow(
+  item: {
+    id: string;
+    name: string;
+    packSize: number;
+    packPrice: number;
+    unit: string;
+    usage: string;
+  },
+  used: number,
+  dimensions: string,
+): HardwareSummary {
+  const packCount = packsToBuy(used, item.packSize);
+  return {
+    id: item.id,
+    name: item.name,
+    dimensions,
+    usage: item.usage,
+    used,
+    packSize: item.packSize,
+    packCount,
+    packPrice: item.packPrice,
+    subtotal: packCount * item.packPrice,
+    unit: item.unit,
+  };
 }
 
 function summarizeModuleHardware(): HardwareSummary[] {

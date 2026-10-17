@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { FASTENER, MODULE_BOLT, MODULE_FASTENER, PRICE } from "./constants";
+import { FASTENER, FRAME_HARDWARE, MODULE_BOLT, MODULE_FASTENER, PRICE } from "./constants";
 import { FRAME_CUT_PLAN } from "./cut-plan";
+import { FRAME_HARDWARE_PLACEMENTS } from "./frame";
 import { FRAME_JOINTS } from "./joints";
 import {
   FASTENER_SUMMARY,
+  FRAME_HARDWARE_SUMMARY,
   MODULE_HARDWARE_SUMMARY,
   PART_SUMMARY,
   PROJECT_COST,
@@ -89,14 +91,33 @@ describe("表示用の部材集計", () => {
     );
   });
 
-  it("合計に木材、コーススレッド、モジュールの連結金物、カット代を含める", () => {
+  it("合計に木材、フレームの金物、コーススレッド、モジュールの連結金物、カット代を含める", () => {
     expect(PROJECT_COST.totalCost).toBe(
-      PROJECT_COST.lumberCost + PROJECT_COST.fastenerCost + PROJECT_COST.cutCost,
+      PROJECT_COST.lumberCost +
+        PROJECT_COST.fastenerCost +
+        PROJECT_COST.frameHardwareCost +
+        PROJECT_COST.cutCost,
     );
     expect(PROJECT_COST.fastenerCost).toBe(
       FASTENER_SUMMARY.reduce((sum, fastener) => sum + fastener.subtotal, 0) +
         MODULE_HARDWARE_SUMMARY.reduce((sum, item) => sum + item.subtotal, 0),
     );
+    expect(PROJECT_COST.frameHardwareCost).toBe(
+      FRAME_HARDWARE_SUMMARY.reduce((sum, item) => sum + item.subtotal, 0),
+    );
+  });
+
+  it("脚と根太受けは置いた個数を入数で切り上げて買う", () => {
+    for (const product of [FRAME_HARDWARE.leg, FRAME_HARDWARE.joistHanger]) {
+      const used = FRAME_HARDWARE_PLACEMENTS.filter((item) => item.name === product.name).length;
+      const row = FRAME_HARDWARE_SUMMARY.find((item) => item.id === product.id);
+      expect(used).toBeGreaterThan(0);
+      expect(row?.used).toBe(used);
+      expect(row?.packPrice).toBe(product.packPrice);
+      expect(row?.packCount).toBe(packsToBuy(used, product.packSize));
+      expect(row?.subtotal).toBe((row?.packCount ?? 0) * product.packPrice);
+      expect(PURCHASE_ITEMS.some((item) => item.name === product.name)).toBe(true);
+    }
   });
 
   it("モジュールのボルト、ナット、座金は使用数を入数で切り上げて買う", () => {
