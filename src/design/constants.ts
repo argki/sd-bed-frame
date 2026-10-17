@@ -129,3 +129,34 @@ export const MODULE_FASTENER = {
     usage: "モジュールのボルトの両側に入れる",
   },
 } as const;
+
+/**
+ * 上枠と脚のフレームで使う金物。価格と入数は、ビバホームオンラインに掲載されていた税込。
+ * leg は高さ約370mmの鋼製シングル脚。joistHanger は 2x4 を89mm立てて渡すときの受け（内寸89×40）。
+ * 外形の数値はメーカーの掲載寸法に合わせている。
+ */
+export const FRAME_HARDWARE = {
+  leg: {
+    id: "frame-leg",
+    name: "DIYデザイン脚",
+    height: 370,
+    packSize: 1,
+    packPrice: 2178,
+    unit: "本",
+    color: "黒",
+    usage: "モジュール四隅で上枠を床まで支える",
+  },
+  joistHanger: {
+    id: "joist-hanger",
+    name: "2×4サポート 受け金物",
+    model: "24-U2-WH",
+    thickness: 2,
+    width: 37,
+    innerWidth: 89,
+    depth: 40,
+    packSize: 1,
+    packPrice: 272,
+    unit: "個",
+    usage: "中央の上枠の両端を長辺の上枠へ受ける",
+  },
+} as const;
