@@ -2,6 +2,8 @@ import {
   LUMBER,
   LUMBER_2X4,
   MATTRESS,
+  MODULE_BOLT,
+  MODULE_FASTENER,
   SLAT_MAX_GAP,
   STORAGE_BOX,
   STORAGE_CLEARANCE,
@@ -44,6 +46,20 @@ const BAYS = [
   { minZ: RAIL_T, maxZ: DIVIDER_Z },
   { minZ: DIVIDER_Z + RAIL_T, maxZ: MODULE_SIZE.length - RAIL_T },
 ] as const;
+
+/**
+ * 頭側に近い区画のパネル桟を、寸切ボルトの先端より奥へ寄せる。
+ * ボルトは購入した長さのまま、足側モジュールのこの区画へ入る。
+ */
+function seamBattenShift(bayIndex: number): number {
+  const bay = BAYS[bayIndex];
+  if (bayIndex !== 0 || !bay) {
+    return 0;
+  }
+  const tip = MODULE_FASTENER.acrossWidth.length - RAIL_T;
+  const centeredMin = (bay.minZ + bay.maxZ - LUMBER.thickness) / 2;
+  return Math.max(0, tip + MODULE_BOLT.diameter - centeredMin);
+}
 
 /** 1つの区画に奥行き方向へ並べる箱の数。手前に余裕を残す。 */
 export const BOXES_PER_BAY = Math.floor((STORAGE_DEPTH - STORAGE_CLEARANCE) / STORAGE_BOX.depth);
@@ -149,11 +165,11 @@ export function moduleParts(module: FrameModule): Part[] {
       moduleId: module.id,
       length: CROSS_RAIL_LENGTH,
       section: LUMBER,
-      placements: BAYS.map((bay) => ({
+      placements: BAYS.map((bay, index) => ({
         position: {
           x: RAIL_T,
           y: RAIL_BOTTOM + RAIL_W - LUMBER.width,
-          z: (bay.minZ + bay.maxZ - LUMBER.thickness) / 2,
+          z: (bay.minZ + bay.maxZ - LUMBER.thickness) / 2 + seamBattenShift(index),
         },
         lengthAxis: "x" as const,
         widthAxis: "y" as const,

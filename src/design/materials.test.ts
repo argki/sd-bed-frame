@@ -145,9 +145,19 @@ describe("表示用の部材集計", () => {
         0,
       );
       const item = MODULE_HARDWARE_SUMMARY.find((row) => row.id === bolt.id);
+      if (used === 0) {
+        expect(item).toBeUndefined();
+        expect(
+          PURCHASE_ITEMS.some(
+            (purchase) => purchase.name === `${bolt.name} ${bolt.diameter}×${bolt.stockLength}`,
+          ),
+        ).toBe(false);
+        continue;
+      }
       expect(item?.used).toBe(used);
       expect(item?.packPrice).toBe(bolt.packPrice);
       expect(item?.packCount).toBe(packsToBuy(used, bolt.packSize));
+      expect(item?.dimensions).not.toContain("切る");
       nuts += used * bolt.nutsPerBolt;
       washers += used * MODULE_BOLT.washersPerBolt;
     }

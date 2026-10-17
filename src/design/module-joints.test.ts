@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { FASTENER, LUMBER_2X4, MODULE_BOLT } from "./constants";
-import { FRAME_MODULES, moduleParts } from "./frame";
-import { placementBox } from "./geometry";
+import { FASTENER, LUMBER_2X4, MODULE_BOLT, MODULE_FASTENER } from "./constants";
+import { FRAME_MODULES, moduleParts, STORAGE_CLEAR_HEIGHT } from "./frame";
+import { intersects, placementBox } from "./geometry";
 import { FRAME_JOINTS } from "./joints";
 import { BOLTS_PER_MODULE_JOINT, boltLengthForGrip, MODULE_JOINTS } from "./module-joints";
 import type { Axis, Box3, FrameModule, Vec3 } from "./types";
@@ -71,6 +71,35 @@ describe("モジュールの連結", () => {
     }
   });
 
+  it("寸切ボルトは購入した長さのままで、パネル桟と開口に入らない", () => {
+    expect(MODULE_FASTENER.acrossWidth.length).toBe(MODULE_FASTENER.acrossWidth.stockLength);
+    const radius = MODULE_BOLT.diameter / 2;
+    const battens = battenBoxes();
+    for (const joint of MODULE_JOINTS) {
+      for (const point of joint.positions) {
+        const start = Math.min(...jointEnds(joint).map((end) => end.box.min[joint.axis]));
+        const shaft = {
+          min: {
+            x: point.x - radius,
+            y: point.y - radius,
+            z: point.z - radius,
+            [joint.axis]: start,
+          },
+          max: {
+            x: point.x + radius,
+            y: point.y + radius,
+            z: point.z + radius,
+            [joint.axis]: start + joint.boltLength,
+          },
+        };
+        for (const batten of battens) {
+          expect(intersects(shaft, batten)).toBe(false);
+        }
+        expect(shaft.min.y).toBeGreaterThanOrEqual(STORAGE_CLEAR_HEIGHT);
+      }
+    }
+  });
+
   it("ボルトは、モジュール内のネジに当たらない", () => {
     const bolts = MODULE_JOINTS.flatMap((joint) =>
       joint.positions.map((point) => ({
@@ -96,6 +125,30 @@ describe("モジュールの連結", () => {
     }
   });
 });
+
+function battenBoxes(): Box3[] {
+  return FRAME_MODULES.flatMap((module) =>
+    moduleParts(module)
+      .filter((part) => part.name === "パネル桟")
+      .flatMap((part) =>
+        part.placements.map((placement) => {
+          const local = placementBox(part.length, placement, part.section);
+          return {
+            min: {
+              x: module.origin.x + local.min.x,
+              y: module.origin.y + local.min.y,
+              z: module.origin.z + local.min.z,
+            },
+            max: {
+              x: module.origin.x + local.max.x,
+              y: module.origin.y + local.max.y,
+              z: module.origin.z + local.max.z,
+            },
+          };
+        }),
+      ),
+  );
+}
 
 function worldRails(module: FrameModule): Post[] {
   return moduleParts(module).flatMap((part) => {

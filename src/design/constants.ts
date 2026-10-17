@@ -108,13 +108,13 @@ export const MODULE_BOLT = {
   washerName: "丸座金",
   washersPerBolt: 2,
   endAllowance: 12,
-  lengths: [50, 200],
+  lengths: [50, 285],
 } as const;
 
 /**
  * モジュール連結で買う金物。価格と入数は、ビバホームオンラインに掲載されていた税込。
  * 掲載は店舗での取り扱いだった。
- * acrossWidth は、取り付ける長さの六角ボルトが掲載になかったため、寸切ボルトを切って使う。頭がないので両端をナットで締める。
+ * acrossWidth は、取り付ける長さの六角ボルトが掲載になかったため、寸切ボルトを購入した長さのまま使う。頭がないので両端をナットで締める。切らない。
  */
 export const MODULE_FASTENER = {
   acrossThickness: {
@@ -133,13 +133,13 @@ export const MODULE_FASTENER = {
     id: "module-stud",
     name: "寸切ボルト",
     diameter: MODULE_BOLT.diameter,
-    length: 200,
+    length: 285,
     stockLength: 285,
     packSize: 1,
     packPrice: 195,
     nutsPerBolt: 2,
     unit: "本",
-    usage: "接している上枠を厚み方向に通す。285mmを200mmに切る",
+    usage: "接している上枠を厚み方向に、購入した長さのまま通す",
   },
   nut: {
     id: "module-nut",

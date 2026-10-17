@@ -228,7 +228,7 @@ function summarizeModuleHardware(): HardwareSummary[] {
   );
   const washerUsed = boltTotal() * MODULE_BOLT.washersPerBolt;
   return [
-    ...bolts,
+    ...bolts.filter((item) => item.used > 0),
     packItem(MODULE_FASTENER.nut, nutUsed, `M${MODULE_FASTENER.nut.diameter}`),
     packItem(
       MODULE_FASTENER.washer,
