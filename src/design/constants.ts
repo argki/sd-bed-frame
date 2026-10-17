@@ -26,9 +26,20 @@ export const LUMBER = {
   length: 3650,
 } as const;
 
-/** ビバホームでの価格。 */
+/**
+ * 2x4 材（12f）。実寸は 38mm × 89mm。
+ * 長さは 1x4 の 12f と同じ 3650mm として扱う。
+ */
+export const LUMBER_2X4 = {
+  thickness: 38,
+  width: 89,
+  length: 3650,
+} as const;
+
+/** ビバホームでの価格。lumber2x4 は現地で見た 12f の税込。 */
 export const PRICE = {
   lumber: 712,
+  lumber2x4: 1188,
   cut: 50,
 } as const;
 
